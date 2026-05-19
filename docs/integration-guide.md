@@ -50,6 +50,57 @@ val client = PilotPartnerClient.builder()
 `PartnerEnvironment` ships with `PRODUCTION`, `SANDBOX`, `STAGING`, `DEV`.
 Use `.baseUrl(...)` for self-hosted/test rigs.
 
+### Pointing the SDK at a local backend
+
+For partner-side development against a locally-running Pilot backend, a
+mock server, or an on-prem deployment, pass an explicit URL via
+`.baseUrl(...)` instead of `.environment(...)`. The two are mutually
+exclusive — whichever is called last wins on the builder.
+
+```kotlin
+PilotPartnerClient.builder()
+    .apiKey(BuildConfig.PILOT_API_KEY)
+    .organizationUuid(BuildConfig.PILOT_ORG_UUID)
+    .baseUrl("http://10.0.2.2:3000/partner/v1/")
+    .build()
+```
+
+Two Android-specific quirks bite here:
+
+1. **`localhost` from the emulator points at the emulator itself, not
+   your dev machine.** Use `10.0.2.2` from the standard Android emulator
+   (Google's loopback alias for the host) or `host.docker.internal` if
+   your backend runs in Docker. Physical devices over USB need
+   `adb reverse tcp:3000 tcp:3000` and then `localhost` is fine.
+
+2. **Android blocks cleartext HTTP by default** (since API 28). Hitting
+   `http://10.0.2.2:3000` will fail with
+   `java.net.UnknownServiceException: CLEARTEXT communication … not permitted`.
+   Add a network-security-config that whitelists only the loopback hosts:
+
+   ```xml
+   <!-- app/src/main/res/xml/network_security_config.xml -->
+   <network-security-config>
+       <base-config cleartextTrafficPermitted="false">
+           <trust-anchors><certificates src="system" /></trust-anchors>
+       </base-config>
+       <domain-config cleartextTrafficPermitted="true">
+           <domain includeSubdomains="false">localhost</domain>
+           <domain includeSubdomains="false">127.0.0.1</domain>
+           <domain includeSubdomains="false">10.0.2.2</domain>
+       </domain-config>
+   </network-security-config>
+   ```
+
+   ```xml
+   <!-- AndroidManifest.xml -->
+   <application android:networkSecurityConfig="@xml/network_security_config" …>
+   ```
+
+   This keeps HTTPS-only for every real host while allowing cleartext
+   to the three loopback aliases — the right shape for both dev and
+   production from one APK.
+
 ### Configuring secrets on Android
 
 **Do not call `System.getenv("PILOT_API_KEY")` from your Android app
@@ -81,10 +132,21 @@ android {
         buildConfigField("String", "PILOT_API_KEY",  "\"${secret("PILOT_API_KEY")}\"")
         buildConfigField("String", "PILOT_ORG_UUID", "\"${secret("PILOT_ORG_UUID")}\"")
         buildConfigField("String", "PILOT_GATEWAY_SECRET", "\"${secret("PILOT_GATEWAY_SECRET")}\"")
+        buildConfigField("String", "PILOT_BASE_URL", "\"${secret("PILOT_BASE_URL")}\"")
     }
     buildFeatures { buildConfig = true }
 }
 ```
+
+Recognized variables:
+
+| Name | Required | Notes |
+| --- | --- | --- |
+| `PILOT_API_KEY` | yes | Issued by Pilot ops. |
+| `PILOT_ORG_UUID` | yes | The org the key is bound to. |
+| `PILOT_GATEWAY_SECRET` | only on dev/sandbox without Oathkeeper | Empty in prod. |
+| `PILOT_ENVIRONMENT` | no | `PRODUCTION` / `SANDBOX` / `STAGING` / `DEV`. Defaults to `SANDBOX` if blank. |
+| `PILOT_BASE_URL` | no | Overrides `PILOT_ENVIRONMENT` when set — for localhost / mock / on-prem. See "Pointing the SDK at a local backend" below. |
 
 Then at the call site:
 
