@@ -50,6 +50,73 @@ val client = PilotPartnerClient.builder()
 `PartnerEnvironment` ships with `PRODUCTION`, `SANDBOX`, `STAGING`, `DEV`.
 Use `.baseUrl(...)` for self-hosted/test rigs.
 
+### Configuring secrets on Android
+
+**Do not call `System.getenv("PILOT_API_KEY")` from your Android app
+code.** Android app processes are forked from zygote and do not inherit
+your shell's environment — `System.getenv` returns `null` for anything
+you set in `.zshrc` / CI env. It works in JVM unit tests (which run in
+your dev shell) and silently fails on-device, which is the worst
+possible failure mode.
+
+The right pattern is to resolve secrets at **build time** and expose them
+via `BuildConfig`:
+
+```kotlin
+// app/build.gradle.kts
+import java.util.Properties
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun secret(name: String): String =
+    providers.gradleProperty(name).orNull
+        ?: System.getenv(name)
+        ?: localProps.getProperty(name)
+        ?: ""
+
+android {
+    defaultConfig {
+        buildConfigField("String", "PILOT_API_KEY",  "\"${secret("PILOT_API_KEY")}\"")
+        buildConfigField("String", "PILOT_ORG_UUID", "\"${secret("PILOT_ORG_UUID")}\"")
+        buildConfigField("String", "PILOT_GATEWAY_SECRET", "\"${secret("PILOT_GATEWAY_SECRET")}\"")
+    }
+    buildFeatures { buildConfig = true }
+}
+```
+
+Then at the call site:
+
+```kotlin
+val client = PilotPartnerClient.builder()
+    .apiKey(BuildConfig.PILOT_API_KEY)
+    .organizationUuid(BuildConfig.PILOT_ORG_UUID)
+    .gatewaySecret(BuildConfig.PILOT_GATEWAY_SECRET.takeIf { it.isNotBlank() })
+    .environment(PartnerEnvironment.SANDBOX)
+    .build()
+```
+
+Lookup precedence — pick whichever fits your environment:
+
+| Source | When to use | Example |
+| --- | --- | --- |
+| `-P` Gradle property | One-off local builds, CI invocation | `./gradlew assembleDebug -PPILOT_API_KEY=pk_…` |
+| Environment variable | CI build agents | `PILOT_API_KEY=pk_… ./gradlew assembleRelease` |
+| `local.properties` | Dev workstation default — **already gitignored by AGP** | `PILOT_API_KEY=pk_test_…` |
+
+Treat production keys like any other release secret: store them in your
+CI's secret manager (GitHub Actions Secrets, Vault, AWS Secrets Manager,
+Doppler) and inject them as env vars at build time. Never commit them to
+`gradle.properties` or check `local.properties` into git.
+
+> ⚠️ `BuildConfig` strings are embedded in the APK as constants. They are
+> obfuscated by R8 but **trivially recoverable** by anyone who unzips the
+> APK. The partner API key is a bearer credential; rotate immediately if
+> a key is leaked. For higher-value secrets (e.g. partner-side payment
+> gateway tokens), fetch them at runtime from your own backend instead
+> of embedding them.
+
 ## 2. The full purchase flow
 
 The partner API uses a **two-phase commit**:
