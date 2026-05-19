@@ -12,6 +12,7 @@ import life.pilot.partner.sdk.error.PartnerException
 import life.pilot.partner.sdk.model.EventDetail
 import life.pilot.partner.sdk.model.InventorySnapshot
 import life.pilot.partner.ui.event.EventListState
+import kotlinx.coroutines.CancellationException
 
 /**
  * Optional ViewModel that wires the SDK to [EventListState] and the
@@ -52,8 +53,10 @@ class EventsViewModel(
                         isLoading = false,
                     )
                 }
-            } catch (e: PartnerException) {
-                _events.update { it.copy(isLoading = false, error = e.message ?: "Failed to load events") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _events.update { it.copy(isLoading = false, error = describe(e)) }
             }
         }
     }
@@ -68,8 +71,10 @@ class EventsViewModel(
                 if (inv.isSuccessful) {
                     _inventory.value = inv.body()
                 }
-            } catch (e: PartnerException) {
-                _detailError.value = e.message ?: "Failed to load event"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _detailError.value = describe(e)
             } finally {
                 _detailLoading.value = false
             }
@@ -81,9 +86,16 @@ class EventsViewModel(
             try {
                 val resp = client.events.inventory(eventUuid, ifNoneMatch)
                 if (resp.code() == 200) _inventory.value = resp.body()
-            } catch (_: PartnerException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
                 // soft-fail; existing inventory remains
             }
         }
+    }
+
+    private fun describe(e: Throwable): String = when (e) {
+        is PartnerException -> e.message ?: e.code
+        else -> e.message ?: e.javaClass.simpleName
     }
 }

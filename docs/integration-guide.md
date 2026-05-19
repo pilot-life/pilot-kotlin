@@ -326,7 +326,81 @@ without depending on user-facing text.
   the OkHttp dispatcher (optional — leaking it during process death is
   harmless).
 
-## 9. R8 / ProGuard
+## 9. Network errors and timeouts
+
+Every failure the SDK can throw — HTTP error response, connect failure,
+TLS error, DNS lookup, **read timeout** — surfaces as a
+`PartnerException` subclass. Consumers never need to catch raw
+`IOException` from a documented SDK call.
+
+Transport-level failures all map to `PartnerException.Network`:
+
+```kotlin
+import life.pilot.partner.sdk.error.PartnerException
+
+try {
+    client.events.list()
+} catch (e: PartnerException.Network) {
+    // No internet, backend unreachable, DNS broken, read timed out.
+    // e.cause holds the underlying SocketTimeoutException /
+    // UnknownHostException / ConnectException for inspection or logging.
+    showSnackbar("Couldn't reach Pilot — ${e.message}")
+} catch (e: PartnerException.NotFound) {
+    // …
+} catch (e: PartnerException) {
+    // Catch-all for any other typed failure.
+}
+```
+
+### Timeout knobs
+
+The builder exposes the two safe-to-tune timeouts:
+
+| Knob | Default | Tune up when … |
+| --- | --- | --- |
+| `connectTimeout(seconds)` | `10` | Customer base on flaky / high-latency networks (rural, in-venue Wi-Fi). |
+| `callTimeout(seconds)` | `30` | Background workers willing to wait for slow flows. **Do not raise** on user-blocking screens — show a spinner and fail fast. |
+
+The underlying OkHttp `readTimeout` defaults to `10s` and is the timeout
+that **actually fires in production when the backend hangs** — it
+manifests as a `SocketTimeoutException` propagated through the SDK and
+arrives at your `catch` as `PartnerException.Network`. If you need a
+different read timeout, set it via the escape hatch:
+
+```kotlin
+.configureHttpClient { it.readTimeout(15, TimeUnit.SECONDS) }
+```
+
+> ⚠️ Avoid `callTimeout` for "kill the request entirely". When OkHttp's
+> call-timeout watchdog fires, the resulting `InterruptedIOException`
+> escapes the SDK's typed-exception wrapping (it's thrown from a layer
+> above the interceptor chain). Prefer `readTimeout` / `connectTimeout`
+> for tight bounds, and use `callTimeout` only as a generous outer
+> safety net.
+
+### Don't only catch `PartnerException` in coroutines
+
+A common ViewModel bug: catching only one exception type inside a
+`viewModelScope.launch { }` and letting everything else crash the app.
+Always rethrow `CancellationException`, then widen the catch:
+
+```kotlin
+viewModelScope.launch {
+    try {
+        val page = client.events.list()
+        // …
+    } catch (e: CancellationException) {
+        throw e               // never swallow cancellation
+    } catch (e: Throwable) {
+        _state.update { it.copy(error = e.message) }
+    }
+}
+```
+
+`EventsViewModel` in `pilot-partner-ui` already does this — it's the
+template to copy.
+
+## 10. R8 / ProGuard
 
 The SDK ships consumer R8 rules inside the JAR at
 `META-INF/proguard/pilot-partner-sdk.pro`. AGP picks them up automatically
@@ -350,7 +424,7 @@ run the integration smoke test (see `pilot-kotlin-test/app/src/test/.../SdkInteg
 If `client.events.list()` parses an empty `nextCursor` correctly with R8
 enabled, the rules are working.
 
-## 10. Going to production
+## 11. Going to production
 
 Checklist:
 
