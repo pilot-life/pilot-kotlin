@@ -332,6 +332,70 @@ if (!verifier.verify(rawBody, request.header("X-Pilot-Signature"))) {
 
 **Always** dedup on `eventId` — webhooks are at-least-once.
 
+## 7a. Search, date filters, and images
+
+`EventListWithFilters` is a drop-in replacement for `EventList` that
+adds a search field and two date chips (start / end) above the list:
+
+```kotlin
+val state    by vm.events.collectAsState()
+val filters  by vm.filters.collectAsState()
+
+EventListWithFilters(
+    state = state,
+    filters = filters,
+    onFiltersChange = vm::updateFilters,
+    imageUrlFor = { evt -> imageResolver.urlFor(evt.eventUUID) },
+    onLoadMore = { vm.loadMoreEvents() },
+    onEventClick = onEventClick,
+)
+```
+
+### Filter semantics
+
+The partner API only supports filtering by `startsAfter`. The other
+filters apply in-memory. `EventsViewModel.updateFilters(...)` follows
+this contract automatically:
+
+| Filter | Where it's enforced | Effect of changing it |
+| --- | --- | --- |
+| `startsAfter` | Server (`?startsAfter=` on `GET /events`) | Resets pagination, refetches page 1. |
+| `endsBefore` | Client | Re-renders the current page filtered in memory. |
+| `query` | Client | Same — matches `name` or `venueName` (case-insensitive, trimmed). |
+
+That asymmetry has two consequences worth surfacing to your users:
+
+1. **A client-side filter can leave a page looking empty even when more
+   results exist server-side.** `EventListWithFilters` shows a hint
+   ("No events match your filters in the current page — scroll to
+   load more, or relax the filters.") and continues to paginate.
+2. **Search results are scoped to what's been loaded.** A query that
+   matches an event 50 pages down won't surface until the user scrolls.
+   If you need full-set search, you'll have to maintain your own index
+   downstream — the partner API does not expose a search endpoint.
+
+### Event images
+
+The partner API does **not** return image URLs in `EventListItem` or
+`EventDetail`. The `imageUrlFor: (EventListItem) -> String?` callback on
+both `EventList` and `EventListWithFilters` is the integration point for
+plugging in whatever image source you have:
+
+| Source | Example resolver |
+| --- | --- |
+| Your own CMS keyed by `eventUUID` | `{ evt -> cms.image(evt.eventUUID) }` |
+| Convention over the venue name | `{ evt -> "https://cdn.example.com/venues/${evt.venueName?.slug()}.jpg" }` |
+| Static placeholder for non-prod / demos | `{ evt -> "https://picsum.photos/seed/${evt.eventUUID}/800/450" }` |
+
+If the callback returns `null`, the card falls back to a calendar-icon
+placeholder on the surface-variant color so the layout stays stable. No
+network requests are made for the missing image.
+
+If you want event imagery surfaced through the partner API itself (so
+downstream consumers don't need a side channel), that's a server-side
+change to `EventListItem` / `EventDetail` schemas — file it on the
+backend team, not the SDK.
+
 ## 7. UI component conventions
 
 The Compose components mirror pilot-frontend's hierarchy:

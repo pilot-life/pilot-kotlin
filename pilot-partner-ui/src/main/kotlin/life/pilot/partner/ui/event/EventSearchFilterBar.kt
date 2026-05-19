@@ -1,0 +1,198 @@
+package life.pilot.partner.ui.event
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+/**
+ * Search + date-range filter strip rendered above an [EventList].
+ *
+ * Mirrors the layout pilot-frontend uses in its event search panel:
+ * full-width search field on top, two date chips below ("Starts after",
+ * "Ends before") that open Material 3 date pickers when tapped.
+ *
+ * Filter state is hoisted — pass [filters] in, receive updates via
+ * [onFiltersChange]. The hosting ViewModel decides what to do with the
+ * change (refetch on `startsAfter`, in-memory filter on `query` /
+ * `endsBefore`).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EventSearchFilterBar(
+    filters: EventListFilters,
+    onFiltersChange: (EventListFilters) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(EventSearchFilterBarTestTags.Root),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = filters.query,
+            onValueChange = { onFiltersChange(filters.copy(query = it)) },
+            placeholder = { Text("Search events…") },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = {
+                if (filters.query.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onFiltersChange(filters.copy(query = "")) },
+                        modifier = Modifier.testTag(EventSearchFilterBarTestTags.ClearQuery),
+                    ) {
+                        Icon(Icons.Outlined.Clear, contentDescription = "Clear search")
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(EventSearchFilterBarTestTags.SearchField),
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DateChip(
+                label = filters.startsAfter?.let { "Starts after ${DateChipFormat.format(it)}" }
+                    ?: "Starts after…",
+                isSet = filters.startsAfter != null,
+                onClick = { showStartPicker = true },
+                onClear = { onFiltersChange(filters.copy(startsAfter = null)) },
+                testTagRoot = EventSearchFilterBarTestTags.StartsAfterChip,
+            )
+            DateChip(
+                label = filters.endsBefore?.let { "Ends before ${DateChipFormat.format(it)}" }
+                    ?: "Ends before…",
+                isSet = filters.endsBefore != null,
+                onClick = { showEndPicker = true },
+                onClear = { onFiltersChange(filters.copy(endsBefore = null)) },
+                testTagRoot = EventSearchFilterBarTestTags.EndsBeforeChip,
+            )
+        }
+    }
+
+    if (showStartPicker) {
+        DatePickerSheet(
+            initial = filters.startsAfter,
+            onDismiss = { showStartPicker = false },
+            onPick = { picked ->
+                onFiltersChange(filters.copy(startsAfter = picked))
+                showStartPicker = false
+            },
+        )
+    }
+    if (showEndPicker) {
+        DatePickerSheet(
+            initial = filters.endsBefore,
+            onDismiss = { showEndPicker = false },
+            onPick = { picked ->
+                onFiltersChange(filters.copy(endsBefore = picked))
+                showEndPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun DateChip(
+    label: String,
+    isSet: Boolean,
+    onClick: () -> Unit,
+    onClear: () -> Unit,
+    testTagRoot: String,
+) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = { Icon(Icons.Outlined.DateRange, contentDescription = null) },
+        trailingIcon = if (isSet) {
+            {
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.testTag("$testTagRoot.clear"),
+                ) {
+                    Icon(Icons.Outlined.Clear, contentDescription = "Clear")
+                }
+            }
+        } else null,
+        colors = if (isSet) {
+            AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        } else AssistChipDefaults.assistChipColors(),
+        modifier = Modifier.testTag(testTagRoot),
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatePickerSheet(
+    initial: LocalDate?,
+    onDismiss: () -> Unit,
+    onPick: (LocalDate) -> Unit,
+) {
+    val pickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initial?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val millis = pickerState.selectedDateMillis
+                    if (millis != null) {
+                        val picked = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        onPick(picked)
+                    }
+                },
+            ) { Text("OK") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    ) {
+        DatePicker(state = pickerState)
+    }
+}
+
+private val DateChipFormat = DateTimeFormatter.ofPattern("MMM d, yyyy")
+
+object EventSearchFilterBarTestTags {
+    const val Root = "EventSearchFilterBar.root"
+    const val SearchField = "EventSearchFilterBar.search"
+    const val ClearQuery = "EventSearchFilterBar.clear"
+    const val StartsAfterChip = "EventSearchFilterBar.startsAfter"
+    const val EndsBeforeChip = "EventSearchFilterBar.endsBefore"
+}
