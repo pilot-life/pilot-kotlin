@@ -28,7 +28,9 @@ dependencies {
     api(libs.kotlinx.serialization.json)
 
     api(libs.okhttp)
-    implementation(libs.okhttp.logging)
+    // logging is `api` because PilotPartnerClient.Builder.logging() takes
+    // HttpLoggingInterceptor.Level — consumers need the type to compile.
+    api(libs.okhttp.logging)
     api(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
 

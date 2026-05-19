@@ -43,7 +43,9 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // viewmodel.compose is `api` because EventsViewModel ships in the
+    // library; consumers calling `viewModel(...)` need it on the classpath.
+    api(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
 
     val composeBom = platform(libs.compose.bom)

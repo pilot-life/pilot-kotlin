@@ -3,6 +3,26 @@
 This is a long-form companion to the [README](../README.md). Use it when
 you're wiring the SDK into a real partner app.
 
+## 0. What you get on the classpath
+
+Both artifacts ship a deliberately small set of `api`-scoped transitive
+dependencies — anything that appears in a public type signature.
+Consuming `life.pilot:pilot-partner-sdk` pulls in:
+
+- `kotlin-stdlib`, `kotlinx-coroutines-core`, `kotlinx-serialization-json`
+- `okhttp` and `okhttp-logging-interceptor` (the SDK builder takes
+  `HttpLoggingInterceptor.Level` as a parameter)
+- `retrofit`
+
+Consuming `life.pilot:pilot-partner-ui-compose` pulls in the SDK plus the
+Compose BOM, Material 3, Coil, and `lifecycle-viewmodel-compose` (the
+shipped `EventsViewModel` is created via `viewModel(factory = …)`).
+
+You should **not** need to declare these yourself in your app's
+`build.gradle.kts`. If a Kotlin import fails to resolve when calling a
+documented SDK or UI API, file a bug — that means an `implementation`
+dep slipped into a public signature.
+
 ## 1. Provisioning
 
 Before the SDK can do anything, your team needs:
