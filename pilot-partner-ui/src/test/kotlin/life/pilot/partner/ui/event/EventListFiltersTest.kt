@@ -89,4 +89,38 @@ class EventListFiltersTest {
             .applyClientSide(listOf(mystery), utc)
         assertThat(result.map { it.eventUUID }).containsOnly("m")
     }
+
+    @Test fun `default sort orders by start date ascending`() {
+        val result = EventListFilters().applyClientSide(listOf(winter, summer, fall), utc)
+        assertThat(result.map { it.eventUUID }).isEqualTo(listOf("s", "f", "w"))
+    }
+
+    @Test fun `start date descending sort`() {
+        val result = EventListFilters(sortBy = EventSortBy.START_DATE_DESC)
+            .applyClientSide(listOf(summer, fall, winter), utc)
+        assertThat(result.map { it.eventUUID }).isEqualTo(listOf("w", "f", "s"))
+    }
+
+    @Test fun `name ascending sort is case-insensitive`() {
+        val a = event("a", "alpha", "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z")
+        val b = event("b", "Beta", "2026-05-01T00:00:00Z", "2026-05-01T00:00:00Z")
+        val c = event("c", "gamma", "2026-07-01T00:00:00Z", "2026-07-01T00:00:00Z")
+        val result = EventListFilters(sortBy = EventSortBy.NAME_ASC)
+            .applyClientSide(listOf(c, a, b), utc)
+        assertThat(result.map { it.eventUUID }).isEqualTo(listOf("a", "b", "c"))
+    }
+
+    @Test fun `name descending sort`() {
+        val result = EventListFilters(sortBy = EventSortBy.NAME_DESC)
+            .applyClientSide(listOf(summer, fall, winter), utc)
+        // Summer Bash, Fall Fest, Winter Gala → Winter > Summer > Fall
+        assertThat(result.map { it.eventUUID }).isEqualTo(listOf("w", "s", "f"))
+    }
+
+    @Test fun `sort runs after filtering`() {
+        // query reduces to summer + winter (both Echo Venue), then DESC by date.
+        val result = EventListFilters(query = "echo", sortBy = EventSortBy.START_DATE_DESC)
+            .applyClientSide(listOf(summer, fall, winter), utc)
+        assertThat(result.map { it.eventUUID }).isEqualTo(listOf("w", "s"))
+    }
 }

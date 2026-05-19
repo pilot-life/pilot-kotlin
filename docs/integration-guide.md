@@ -354,14 +354,35 @@ EventListWithFilters(
 ### Filter semantics
 
 The partner API only supports filtering by `startsAfter`. The other
-filters apply in-memory. `EventsViewModel.updateFilters(...)` follows
-this contract automatically:
+filters and the sort order apply in-memory. `EventsViewModel.updateFilters(...)`
+follows this contract automatically:
 
 | Filter | Where it's enforced | Effect of changing it |
 | --- | --- | --- |
 | `startsAfter` | Server (`?startsAfter=` on `GET /events`) | Resets pagination, refetches page 1. |
 | `endsBefore` | Client | Re-renders the current page filtered in memory. |
-| `query` | Client | Same — matches `name` or `venueName` (case-insensitive, trimmed). |
+| `query` | Client | Matches `name` or `venueName` (case-insensitive, trimmed). |
+| `sortBy` | Client | `START_DATE_ASC` (default), `START_DATE_DESC`, `NAME_ASC`, `NAME_DESC`. Applied after filtering. |
+
+### Pull-to-refresh
+
+`EventListWithFilters` wraps the list in a Material 3 `PullToRefreshBox`.
+Swiping down invokes `onRefresh`, which the shipped ViewModel implements
+as "reset pagination, refetch page 1 with current filters":
+
+```kotlin
+EventListWithFilters(
+    state = state,
+    filters = filters,
+    onFiltersChange = vm::updateFilters,
+    onLoadMore = { vm.loadMoreEvents() },
+    onRefresh  = { vm.refreshEvents() },
+    onEventClick = onEventClick,
+)
+```
+
+The refresh spinner is bound to `state.isLoading && events.isEmpty()`, so
+a refresh visibly resolves whether new events come back or not.
 
 That asymmetry has two consequences worth surfacing to your users:
 
@@ -395,6 +416,48 @@ need to swap in localized art:
 When the resolver (or `event.imageUrl`) returns `null`, the card falls
 back to a calendar-icon placeholder on the surface-variant color so the
 layout stays stable. No network requests are made for the missing image.
+
+## 7b. Request to Attend and Registration
+
+`EventDetailScreen` exposes two optional CTAs patterned after
+pilot-frontend's `TicketSelectHero`:
+
+- **Request to Attend** — full-width primary button promoted above the
+  ticket list when the event uses RTA gating.
+- **Registration** — a separate section underneath the regular ticket
+  list listing free / RSVP ticket types with their own Register
+  button. Same selection state, distinct CTA.
+
+```kotlin
+EventDetailScreen(
+    event = detail,
+    inventory = inv,
+    isRequestToAttendEnabled = { evt -> evt.eventUUID in rtaEvents },
+    registrationTicketTypesFor = { evt -> myRegistrationLookup.forEvent(evt.eventUUID) },
+    onRequestToAttend = { evt -> navigateToRtaFlow(evt) },
+    onRegister = { selections -> startFreeCheckout(selections) },
+    onContinue = { selections -> startPaidCheckout(selections) },
+)
+```
+
+### The honest API caveat
+
+The partner API surface in PR1 does **not** expose:
+
+- a `requestToAttend` flag on `EventDetail`, or any RTA configuration
+  (banner copy, additional-guest limits, etc.)
+- a separate `registrationTicketTypes` array on `EventDetail` or
+  `InventorySnapshot`. Today, every `TicketTypeRow` is "purchase".
+
+That's why the two hooks above take a closure rather than reading a
+field. Today the partner has to source RTA / registration state from
+their own backend (e.g. a small companion API keyed by `eventUUID`).
+Once the partner API exposes those fields natively, the closures will
+fold down to one-line readers from the SDK model — the UI surface
+won't change.
+
+If you need RTA / registration support, file the schema additions on
+the backend team as a follow-up PR; this UI is ready to consume them.
 
 ## 7. UI component conventions
 

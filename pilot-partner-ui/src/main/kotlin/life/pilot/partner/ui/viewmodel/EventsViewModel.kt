@@ -63,6 +63,15 @@ class EventsViewModel(
         }
     }
 
+    /**
+     * Reset pagination and fetch page 1 again with the current filters.
+     * Wired to swipe-down on [life.pilot.partner.ui.event.EventListWithFilters].
+     */
+    fun refreshEvents() {
+        _events.value = EventListState()
+        loadMoreEvents()
+    }
+
     fun loadMoreEvents() {
         val current = _events.value
         if (current.isLoading) return

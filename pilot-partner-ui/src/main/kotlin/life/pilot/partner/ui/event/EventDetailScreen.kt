@@ -73,9 +73,28 @@ fun EventDetailScreen(
     error: String? = null,
     zone: ZoneId = ZoneId.systemDefault(),
     currencyPrefix: String = "$",
+    /**
+     * Show a "Request to Attend" button above the ticket list. The
+     * partner API doesn't expose RTA state today — pass a partner-side
+     * predicate that resolves it (e.g. by looking up event policy in
+     * your own backend). See `kotlin-ui.md` § Request to Attend.
+     */
+    isRequestToAttendEnabled: (EventDetail) -> Boolean = { false },
+    /**
+     * Surface a separate "Register" CTA + a list of registration ticket
+     * types alongside the regular purchase tickets. Same gap as RTA:
+     * the partner API doesn't yet expose which ticket types are
+     * registration. Partners that wire this hook supply the
+     * registration list from their own data source.
+     */
+    registrationTicketTypesFor: (EventDetail) -> List<life.pilot.partner.sdk.model.TicketTypeRow> = { emptyList() },
+    onRequestToAttend: (EventDetail) -> Unit = {},
+    onRegister: (List<TicketSelection>) -> Unit = {},
     onContinue: (List<TicketSelection>) -> Unit = {},
     onRetry: () -> Unit = {},
 ) {
+    val showRta = isRequestToAttendEnabled(event)
+    val registrationTickets = registrationTicketTypesFor(event)
     Box(modifier = modifier.fillMaxSize().testTag(EventDetailScreenTestTags.Root)) {
         Column(
             modifier = Modifier
@@ -120,6 +139,15 @@ fun EventDetailScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+
+            if (showRta) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                EventActionsBar(
+                    event = event,
+                    onRequestToAttend = onRequestToAttend,
+                    modifier = Modifier.padding(16.dp),
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -168,6 +196,34 @@ fun EventDetailScreen(
                         )
                     }
                 }
+
+                if (registrationTickets.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Registration",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.testTag(EventDetailScreenTestTags.RegistrationHeader),
+                    )
+                    registrationTickets.forEach { tt ->
+                        TicketTypeRowItem(
+                            ticket = tt,
+                            quantity = selection.quantityOf(tt.ticketTypeUUID),
+                            onQuantityChange = { q -> selection.set(tt.ticketTypeUUID, q) },
+                            currencyPrefix = currencyPrefix,
+                        )
+                    }
+                    val regSelections = selection.toSelections(registrationTickets)
+                    Button(
+                        onClick = { onRegister(regSelections) },
+                        enabled = regSelections.isNotEmpty(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(EventDetailScreenTestTags.Register),
+                    ) {
+                        Text("Register")
+                    }
+                }
+
                 Spacer(Modifier.height(80.dp))
             }
         }
@@ -183,6 +239,31 @@ fun EventDetailScreen(
                     .testTag(EventDetailScreenTestTags.Footer),
             )
         }
+    }
+}
+
+/**
+ * Promoted action row sitting between the description and the ticket list.
+ *
+ * Currently surfaces only the "Request to Attend" CTA — registration
+ * uses a dedicated section because it shares the ticket-selection flow.
+ *
+ * Mirrors pilot-frontend's `TicketSelectHero` action layout: a single
+ * full-width primary button when RTA is enabled on the event.
+ */
+@Composable
+private fun EventActionsBar(
+    event: EventDetail,
+    onRequestToAttend: (EventDetail) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = { onRequestToAttend(event) },
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(EventDetailScreenTestTags.RequestToAttend),
+    ) {
+        Text("Request to Attend")
     }
 }
 
@@ -298,4 +379,7 @@ object EventDetailScreenTestTags {
     const val Root = "EventDetailScreen.root"
     const val Footer = "EventDetailScreen.footer"
     const val Continue = "EventDetailScreen.continue"
+    const val RequestToAttend = "EventDetailScreen.requestToAttend"
+    const val Register = "EventDetailScreen.register"
+    const val RegistrationHeader = "EventDetailScreen.registrationHeader"
 }

@@ -6,14 +6,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,7 +89,10 @@ fun EventSearchFilterBar(
                 .testTag(EventSearchFilterBarTestTags.SearchField),
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             DateChip(
                 label = filters.startsAfter?.let { "Starts after ${DateChipFormat.format(it)}" }
                     ?: "Starts after…",
@@ -100,6 +108,10 @@ fun EventSearchFilterBar(
                 onClick = { showEndPicker = true },
                 onClear = { onFiltersChange(filters.copy(endsBefore = null)) },
                 testTagRoot = EventSearchFilterBarTestTags.EndsBeforeChip,
+            )
+            SortChip(
+                current = filters.sortBy,
+                onPick = { onFiltersChange(filters.copy(sortBy = it)) },
             )
         }
     }
@@ -158,6 +170,40 @@ private fun DateChip(
     )
 }
 
+@Composable
+private fun SortChip(
+    current: EventSortBy,
+    onPick: (EventSortBy) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        AssistChip(
+            onClick = { expanded = true },
+            label = { Text("Sort: ${current.label}") },
+            leadingIcon = { Icon(Icons.Outlined.Sort, contentDescription = null) },
+            modifier = Modifier.testTag(EventSearchFilterBarTestTags.SortChip),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.testTag(EventSearchFilterBarTestTags.SortMenu),
+        ) {
+            EventSortBy.entries.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt.label) },
+                    onClick = {
+                        onPick(opt)
+                        expanded = false
+                    },
+                    leadingIcon = if (opt == current) {
+                        { Icon(Icons.Outlined.Sort, contentDescription = null) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DatePickerSheet(
@@ -195,4 +241,6 @@ object EventSearchFilterBarTestTags {
     const val ClearQuery = "EventSearchFilterBar.clear"
     const val StartsAfterChip = "EventSearchFilterBar.startsAfter"
     const val EndsBeforeChip = "EventSearchFilterBar.endsBefore"
+    const val SortChip = "EventSearchFilterBar.sort"
+    const val SortMenu = "EventSearchFilterBar.sort.menu"
 }

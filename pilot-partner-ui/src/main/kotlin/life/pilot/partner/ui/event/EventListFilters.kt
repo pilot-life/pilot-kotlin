@@ -15,23 +15,30 @@ import java.time.ZoneId
  * The data class is intentionally serializable-shaped (only `LocalDate`s
  * and strings) so partners can persist it in their own savedState bag.
  */
+enum class EventSortBy(val label: String) {
+    START_DATE_ASC("Date ↑"),
+    START_DATE_DESC("Date ↓"),
+    NAME_ASC("Name A–Z"),
+    NAME_DESC("Name Z–A"),
+}
+
 data class EventListFilters(
     val query: String = "",
     val startsAfter: LocalDate? = null,
     val endsBefore: LocalDate? = null,
+    val sortBy: EventSortBy = EventSortBy.START_DATE_ASC,
 ) {
     val isEmpty: Boolean
-        get() = query.isBlank() && startsAfter == null && endsBefore == null
+        get() = query.isBlank() && startsAfter == null && endsBefore == null && sortBy == EventSortBy.START_DATE_ASC
 
     /**
-     * Apply [query] and [endsBefore] to [events] — the two client-side
-     * filters. Does NOT re-apply [startsAfter] because the API has
+     * Apply [query], [endsBefore], and [sortBy] to [events] — all
+     * client-side. Does NOT re-apply [startsAfter] because the API has
      * already done that. Idempotent and deterministic.
      */
     fun applyClientSide(events: List<EventListItem>, zone: ZoneId = ZoneId.systemDefault()): List<EventListItem> {
-        if (query.isBlank() && endsBefore == null) return events
         val needle = query.trim().lowercase()
-        return events.filter { evt ->
+        val filtered = events.filter { evt ->
             val matchesText = needle.isBlank() ||
                 evt.name.lowercase().contains(needle) ||
                 (evt.venueName?.lowercase()?.contains(needle) == true)
@@ -40,6 +47,12 @@ data class EventListFilters(
                 !end.isAfter(endsBefore)
             }
             matchesText && matchesEnd
+        }
+        return when (sortBy) {
+            EventSortBy.START_DATE_ASC -> filtered.sortedBy { it.startDate }
+            EventSortBy.START_DATE_DESC -> filtered.sortedByDescending { it.startDate }
+            EventSortBy.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
+            EventSortBy.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
         }
     }
 
