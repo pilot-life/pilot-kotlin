@@ -87,6 +87,30 @@ PilotPartnerClient.builder()
 > your backend or you're hitting the wrong port — fix it there before
 > pointing the SDK at it.
 
+### Diagnosing a 404 from `/partner/v1/*`
+
+The partner router intentionally returns `404 NOT_FOUND` for several
+distinct conditions — the API never reveals which to prevent
+enumeration (ADR-0017). When you see one during integration, the
+body content and headers tell you which:
+
+| Response | Likely cause | What to do |
+| --- | --- | --- |
+| `{"ok":true,"version":"v1"}` on `/health` | All good. The 404 you saw was on a specific event/claim/order UUID that genuinely doesn't exist for this org. | List events first to discover real UUIDs. |
+| `{"code":"NOT_FOUND",...}` JSON on `/health` | Partner router is mounted but your org isn't enabled (or API key / org UUID combo is rejected). | Enable `partner_api_enabled` on the org and confirm the API-key↔org binding (see pilot-backend `docs/partner-api/operator-guide.md`). |
+| HTML 404 / `Cannot GET /partner/v1/health` | Partner router isn't mounted at this base URL. | Confirm pilot-backend is on a branch with the partner API (`feat/PIL-2370-pr1-foundation` or merged main), then restart. |
+| Connect / read timeout | Backend not running or wrong port. | Start the backend; verify the port matches `PILOT_BASE_URL`. |
+
+If you turn the SDK's logging up:
+
+```kotlin
+.logging(HttpLoggingInterceptor.Level.BODY)
+```
+
+every request and response (including the partner-router 404 JSON) is
+printed via Logcat — the fastest way to see which of the cases above
+you're in without leaving the app.
+
 Two Android-specific quirks bite here:
 
 1. **`localhost` from the emulator points at the emulator itself, not
