@@ -63,7 +63,12 @@ fun EventDetailScreen(
     inventory: InventorySnapshot?,
     selection: TicketSelectionState = rememberTicketSelectionState(),
     modifier: Modifier = Modifier,
-    imageUrl: String? = null,
+    /**
+     * Hero image URL. Defaults to [EventDetail.imageUrl] returned by the
+     * partner API. Pass an explicit value to override (CMS resolver,
+     * partner-side asset map, etc.).
+     */
+    imageUrl: String? = event.imageUrl,
     isLoading: Boolean = false,
     error: String? = null,
     zone: ZoneId = ZoneId.systemDefault(),

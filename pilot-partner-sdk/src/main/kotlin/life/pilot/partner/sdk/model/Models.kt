@@ -9,6 +9,11 @@ data class EventListItem(
     val startDate: String,
     val endDate: String,
     val venueName: String? = null,
+    /**
+     * Primary event image URL. `null` when the event has no primary image
+     * configured. Inherited by [EventDetail] via openapi `allOf`.
+     */
+    val imageUrl: String? = null,
 )
 
 @Serializable
@@ -24,6 +29,7 @@ data class EventDetail(
     val startDate: String,
     val endDate: String,
     val venueName: String? = null,
+    val imageUrl: String? = null,
     val description: String? = null,
     val shortDescription: String? = null,
 )

@@ -23,7 +23,8 @@ class EventsApiTest {
                 """
                 {
                   "events": [
-                    {"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z","venueName":"Venue X"}
+                    {"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z","venueName":"Venue X","imageUrl":"https://cdn.pilot.life/evt/a.jpg"},
+                    {"eventUUID":"b","name":"NoArt","startDate":"2026-07-01T20:00:00Z","endDate":"2026-07-02T00:00:00Z","venueName":null,"imageUrl":null}
                   ],
                   "nextCursor": "cur-2"
                 }
@@ -32,9 +33,41 @@ class EventsApiTest {
         )
 
         val list = mockClient(server).events.list()
-        assertThat(list.events).hasSize(1)
+        assertThat(list.events).hasSize(2)
         assertThat(list.events[0].venueName).isEqualTo("Venue X")
+        assertThat(list.events[0].imageUrl).isEqualTo("https://cdn.pilot.life/evt/a.jpg")
+        assertThat(list.events[1].imageUrl).isEqualTo(null)
         assertThat(list.nextCursor).isEqualTo("cur-2")
+    }
+
+    @Test fun `list tolerates events with imageUrl omitted entirely`() = runTest {
+        // Backwards-compat path: older deployments may not yet emit imageUrl.
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"events":[{"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z"}],"nextCursor":null}""",
+            ),
+        )
+
+        val list = mockClient(server).events.list()
+        assertThat(list.events[0].imageUrl).isEqualTo(null)
+    }
+
+    @Test fun `event detail parses imageUrl`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """
+                {
+                  "eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z",
+                  "venueName":"Echo","imageUrl":"https://cdn.pilot.life/evt/a-hero.jpg",
+                  "description":"Long blurb","shortDescription":"Short"
+                }
+                """,
+            ),
+        )
+
+        val detail = mockClient(server).events.get("a")
+        assertThat(detail.imageUrl).isEqualTo("https://cdn.pilot.life/evt/a-hero.jpg")
+        assertThat(detail.shortDescription).isEqualTo("Short")
     }
 
     @Test fun `inventory returns ETag and snapshot`() = runTest {

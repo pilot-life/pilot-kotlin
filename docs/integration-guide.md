@@ -376,25 +376,25 @@ That asymmetry has two consequences worth surfacing to your users:
 
 ### Event images
 
-The partner API does **not** return image URLs in `EventListItem` or
-`EventDetail`. The `imageUrlFor: (EventListItem) -> String?` callback on
-both `EventList` and `EventListWithFilters` is the integration point for
-plugging in whatever image source you have:
+The partner API returns `imageUrl: String?` directly on `EventListItem`
+and `EventDetail`. The UI components consume it automatically — both
+`EventList` / `EventListWithFilters` default `imageUrlFor` to
+`{ it.imageUrl }`, and `EventDetailScreen` defaults its `imageUrl`
+parameter to `event.imageUrl`. **No wiring required for the common case.**
 
-| Source | Example resolver |
+Override the resolver only if you want a different image source —
+typically when your own CMS holds higher-resolution variants or you
+need to swap in localized art:
+
+| Override scenario | Example |
 | --- | --- |
-| Your own CMS keyed by `eventUUID` | `{ evt -> cms.image(evt.eventUUID) }` |
-| Convention over the venue name | `{ evt -> "https://cdn.example.com/venues/${evt.venueName?.slug()}.jpg" }` |
-| Static placeholder for non-prod / demos | `{ evt -> "https://picsum.photos/seed/${evt.eventUUID}/800/450" }` |
+| Higher-res variants from your CDN | `imageUrlFor = { evt -> cdn.hero(evt.eventUUID) ?: evt.imageUrl }` |
+| Region-specific artwork | `imageUrlFor = { evt -> i18n.image(evt.eventUUID, locale) ?: evt.imageUrl }` |
+| Force-disable images for a build flavor | `imageUrlFor = { null }` |
 
-If the callback returns `null`, the card falls back to a calendar-icon
-placeholder on the surface-variant color so the layout stays stable. No
-network requests are made for the missing image.
-
-If you want event imagery surfaced through the partner API itself (so
-downstream consumers don't need a side channel), that's a server-side
-change to `EventListItem` / `EventDetail` schemas — file it on the
-backend team, not the SDK.
+When the resolver (or `event.imageUrl`) returns `null`, the card falls
+back to a calendar-icon placeholder on the surface-variant color so the
+layout stays stable. No network requests are made for the missing image.
 
 ## 7. UI component conventions
 

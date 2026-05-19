@@ -39,7 +39,7 @@ fun EventListWithFilters(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     zone: ZoneId = ZoneId.systemDefault(),
-    imageUrlFor: (EventListItem) -> String? = { null },
+    imageUrlFor: (EventListItem) -> String? = { it.imageUrl },
     ticketsRemainingFor: (EventListItem) -> Int? = { null },
     addressLineFor: (EventListItem) -> String? = { null },
     onEventClick: (EventListItem) -> Unit = {},
