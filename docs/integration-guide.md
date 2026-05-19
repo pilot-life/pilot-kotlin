@@ -197,7 +197,31 @@ without depending on user-facing text.
   the OkHttp dispatcher (optional — leaking it during process death is
   harmless).
 
-## 9. Going to production
+## 9. R8 / ProGuard
+
+The SDK ships consumer R8 rules inside the JAR at
+`META-INF/proguard/pilot-partner-sdk.pro`. AGP picks them up automatically
+when minification runs — you do **not** need to copy or repeat them in
+your app's `proguard-rules.pro`.
+
+What they cover:
+
+- All `@Serializable` model + webhook classes and their generated
+  `$$serializer` helpers (otherwise R8 strips them and JSON parsing
+  silently fails at runtime with `SerializationException: Serializer for
+  class … is not found`).
+- Retrofit API interfaces — annotations are kept so reflection at
+  call-site works.
+
+The UI module ships matching rules at `consumer-rules.pro` covering the
+same types and the SDK's webhooks.
+
+**Verify before shipping**: enable minification in a sandbox build and
+run the integration smoke test (see `pilot-kotlin-test/app/src/test/.../SdkIntegrationSmokeTest.kt`).
+If `client.events.list()` parses an empty `nextCursor` correctly with R8
+enabled, the rules are working.
+
+## 10. Going to production
 
 Checklist:
 
