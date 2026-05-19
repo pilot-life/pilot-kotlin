@@ -61,9 +61,31 @@ exclusive — whichever is called last wins on the builder.
 PilotPartnerClient.builder()
     .apiKey(BuildConfig.PILOT_API_KEY)
     .organizationUuid(BuildConfig.PILOT_ORG_UUID)
-    .baseUrl("http://10.0.2.2:3000/partner/v1/")
+    .baseUrl("http://10.0.2.2:3000/partner/v1/")    // <-- include the path AND the trailing slash
     .build()
 ```
+
+> **The URL must end with `/partner/v1/` (slash included).** The partner
+> API is mounted at that prefix; pilot-backend's root path is GraphQL
+> (Apollo). If you set `PILOT_BASE_URL=http://10.0.2.2:3000/`, the SDK
+> will hit `/events` instead of `/partner/v1/events` and Apollo's CSRF
+> middleware will reject the request with a confusing
+> `BadRequestError: This operation has been blocked as a potential
+> Cross-Site Request Forgery (CSRF)` JSON body — because Apollo got the
+> request, not the partner router.
+>
+> Quick verify before you build the app:
+>
+> ```bash
+> curl -i http://localhost:3000/partner/v1/health \
+>   -H "X-API-Key: $PILOT_API_KEY" \
+>   -H "X-Organization-UUID: $PILOT_ORG_UUID"
+> # expect: {"ok":true,"version":"v1"}
+> ```
+>
+> If that curl returns the CSRF JSON or a 404, the prefix is wrong on
+> your backend or you're hitting the wrong port — fix it there before
+> pointing the SDK at it.
 
 Two Android-specific quirks bite here:
 
