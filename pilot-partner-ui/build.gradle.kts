@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -21,10 +22,14 @@ kotlin {
         }
     }
 
+    val xcf = XCFramework("PilotPartnerUi")
     listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "PilotPartnerUi"
-            isStatic = true
+            // Compose Multiplatform on iOS doesn't support static frameworks
+            // (it ships its own dynamic libs at runtime), so we link dynamic.
+            isStatic = false
+            xcf.add(this)
         }
     }
 
@@ -66,6 +71,12 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.ktx)
         }
     }
+}
+
+tasks.register("assembleXCFramework") {
+    group = "build"
+    description = "Assembles PilotPartnerUi.xcframework (Release) for iOS SwiftPM distribution."
+    dependsOn("assemblePilotPartnerUiReleaseXCFramework")
 }
 
 android {
