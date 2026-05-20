@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import life.pilot.partner.sdk.model.EventListItem
-import java.time.ZoneId
+import kotlinx.datetime.TimeZone
 
 /**
  * Drop-in replacement for [EventList] that adds:
@@ -45,7 +45,7 @@ fun EventListWithFilters(
     onFiltersChange: (EventListFilters) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(16.dp),
-    zone: ZoneId = ZoneId.systemDefault(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
     imageUrlFor: (EventListItem) -> String? = { it.imageUrl },
     ticketsRemainingFor: (EventListItem) -> Int? = { null },
     addressLineFor: (EventListItem) -> String? = { null },

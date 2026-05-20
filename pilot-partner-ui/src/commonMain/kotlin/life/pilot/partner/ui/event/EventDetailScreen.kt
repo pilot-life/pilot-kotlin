@@ -35,13 +35,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import life.pilot.partner.sdk.model.EventDetail
 import life.pilot.partner.sdk.model.InventorySnapshot
 import life.pilot.partner.sdk.model.TicketTypeRow
 import life.pilot.partner.ui.util.DateFormat
-import java.math.BigDecimal
-import java.time.ZoneId
+import com.ionspin.kotlin.bignum.decimal.BigDecimal
+import kotlinx.datetime.TimeZone
 
 /**
  * Single-screen event detail that mirrors pilot-frontend's
@@ -71,7 +71,7 @@ fun EventDetailScreen(
     imageUrl: String? = event.imageUrl,
     isLoading: Boolean = false,
     error: String? = null,
-    zone: ZoneId = ZoneId.systemDefault(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
     currencyPrefix: String = "$",
     /**
      * Show a "Request to Attend" button above the ticket list. The
@@ -353,10 +353,10 @@ class TicketSelectionState internal constructor(
 
     fun subtotal(tickets: List<TicketTypeRow>): BigDecimal {
         if (backing.isEmpty()) return BigDecimal.ZERO
-        val priceByUuid = tickets.associate { it.ticketTypeUUID to BigDecimal(it.price) }
+        val priceByUuid = tickets.associate { it.ticketTypeUUID to BigDecimal.parseString(it.price) }
         return backing.entries.fold(BigDecimal.ZERO) { acc, (uuid, qty) ->
             val price = priceByUuid[uuid] ?: BigDecimal.ZERO
-            acc + price.multiply(BigDecimal(qty))
+            acc + (price * BigDecimal.fromInt(qty))
         }
     }
 

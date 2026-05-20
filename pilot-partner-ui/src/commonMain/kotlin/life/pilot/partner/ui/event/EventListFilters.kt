@@ -1,9 +1,10 @@
 package life.pilot.partner.ui.event
 
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import life.pilot.partner.sdk.model.EventListItem
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 
 /**
  * Inputs that narrow an event list. Wire-shape decisions:
@@ -36,15 +37,16 @@ data class EventListFilters(
      * client-side. Does NOT re-apply [startsAfter] because the API has
      * already done that. Idempotent and deterministic.
      */
-    fun applyClientSide(events: List<EventListItem>, zone: ZoneId = ZoneId.systemDefault()): List<EventListItem> {
+    fun applyClientSide(events: List<EventListItem>, zone: TimeZone = TimeZone.currentSystemDefault()): List<EventListItem> {
         val needle = query.trim().lowercase()
+        val endsBeforeBound: LocalDate? = endsBefore
         val filtered = events.filter { evt ->
             val matchesText = needle.isBlank() ||
                 evt.name.lowercase().contains(needle) ||
                 (evt.venueName?.lowercase()?.contains(needle) == true)
-            val matchesEnd = endsBefore == null || run {
+            val matchesEnd = endsBeforeBound == null || run {
                 val end = parseEventDate(evt.endDate, zone) ?: return@run true
-                !end.isAfter(endsBefore)
+                end <= endsBeforeBound
             }
             matchesText && matchesEnd
         }
@@ -57,11 +59,11 @@ data class EventListFilters(
     }
 
     companion object {
-        private fun parseEventDate(iso: String, zone: ZoneId): LocalDate? {
+        private fun parseEventDate(iso: String, zone: TimeZone): LocalDate? {
             // API returns ISO-8601 instants ("2026-06-15T20:00:00Z"). We also
             // tolerate already-local dates ("2026-06-15") for partner code
             // that pre-normalizes.
-            runCatching { return Instant.parse(iso).atZone(zone).toLocalDate() }
+            runCatching { return Instant.parse(iso).toLocalDateTime(zone).date }
             runCatching { return LocalDate.parse(iso) }
             return null
         }

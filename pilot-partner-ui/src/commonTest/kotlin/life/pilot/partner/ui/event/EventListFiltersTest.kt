@@ -5,13 +5,14 @@ import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.containsOnly
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import life.pilot.partner.sdk.model.EventListItem
-import org.junit.jupiter.api.Test
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlin.test.Test
 
 class EventListFiltersTest {
-    private val utc = ZoneId.of("UTC")
+    private val utc = TimeZone.UTC
+    private fun today(): LocalDate = LocalDate(2026, 1, 1)
 
     private fun event(
         uuid: String,
@@ -39,8 +40,8 @@ class EventListFiltersTest {
     @Test fun `isEmpty reports correctly`() {
         assertThat(EventListFilters().isEmpty).isEqualTo(true)
         assertThat(EventListFilters(query = "x").isEmpty).isEqualTo(false)
-        assertThat(EventListFilters(startsAfter = LocalDate.now()).isEmpty).isEqualTo(false)
-        assertThat(EventListFilters(endsBefore = LocalDate.now()).isEmpty).isEqualTo(false)
+        assertThat(EventListFilters(startsAfter = today()).isEmpty).isEqualTo(false)
+        assertThat(EventListFilters(endsBefore = today()).isEmpty).isEqualTo(false)
     }
 
     @Test fun `query matches event name case-insensitively`() {
@@ -63,13 +64,13 @@ class EventListFiltersTest {
     }
 
     @Test fun `endsBefore filters events whose endDate is strictly after`() {
-        val result = EventListFilters(endsBefore = LocalDate.of(2026, 10, 1))
+        val result = EventListFilters(endsBefore = LocalDate(2026, 10, 1))
             .applyClientSide(all, utc)
         assertThat(result.map { it.eventUUID }).containsExactlyInAnyOrder("s", "f")
     }
 
     @Test fun `endsBefore allows same-day endings`() {
-        val result = EventListFilters(endsBefore = LocalDate.of(2026, 6, 15))
+        val result = EventListFilters(endsBefore = LocalDate(2026, 6, 15))
             .applyClientSide(all, utc)
         assertThat(result.map { it.eventUUID }).containsOnly("s")
     }
@@ -77,7 +78,7 @@ class EventListFiltersTest {
     @Test fun `query and endsBefore compose with AND semantics`() {
         val result = EventListFilters(
             query = "fall",
-            endsBefore = LocalDate.of(2026, 10, 1),
+            endsBefore = LocalDate(2026, 10, 1),
         ).applyClientSide(all, utc)
         assertThat(result.map { it.eventUUID }).containsOnly("f")
     }
@@ -85,7 +86,7 @@ class EventListFiltersTest {
     @Test fun `unparseable endDate keeps the event in the list under endsBefore`() {
         // Defensive: don't filter out events we can't classify.
         val mystery = event("m", "Mystery", "2026-01-01T00:00:00Z", "not-a-date")
-        val result = EventListFilters(endsBefore = LocalDate.of(2026, 6, 15))
+        val result = EventListFilters(endsBefore = LocalDate(2026, 6, 15))
             .applyClientSide(listOf(mystery), utc)
         assertThat(result.map { it.eventUUID }).containsOnly("m")
     }

@@ -4,9 +4,9 @@ import androidx.compose.runtime.mutableStateMapOf
 import assertk.assertThat
 import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.isEqualTo
+import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import life.pilot.partner.sdk.model.TicketTypeRow
-import org.junit.jupiter.api.Test
-import java.math.BigDecimal
+import kotlin.test.Test
 
 class TicketSelectionStateTest {
 
@@ -48,7 +48,7 @@ class TicketSelectionStateTest {
         s.set("a", 2)
         s.set("b", 1)
         val tickets = listOf(ticket("a", "10.00"), ticket("b", "5.25"))
-        assertThat(s.subtotal(tickets)).isEqualTo(BigDecimal("25.25"))
+        assertThat(s.subtotal(tickets)).isEqualTo(BigDecimal.parseString("25.25"))
     }
 
     @Test fun `subtotal ignores unknown ticket ids`() {
@@ -56,7 +56,7 @@ class TicketSelectionStateTest {
         s.set("ghost", 5)
         s.set("a", 1)
         val tickets = listOf(ticket("a", "7.00"))
-        assertThat(s.subtotal(tickets)).isEqualTo(BigDecimal("7.00"))
+        assertThat(s.subtotal(tickets)).isEqualTo(BigDecimal.parseString("7.00"))
     }
 
     @Test fun `toSelections returns only positive-quantity rows mapped to tickets`() {

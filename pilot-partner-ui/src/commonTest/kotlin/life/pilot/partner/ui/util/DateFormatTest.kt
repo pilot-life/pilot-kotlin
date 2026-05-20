@@ -2,11 +2,11 @@ package life.pilot.partner.ui.util
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
-import org.junit.jupiter.api.Test
-import java.time.ZoneId
+import kotlinx.datetime.TimeZone
+import kotlin.test.Test
 
 class DateFormatTest {
-    private val utc: ZoneId = ZoneId.of("UTC")
+    private val utc: TimeZone = TimeZone.UTC
 
     @Test fun `single-day event renders as MMMM DD YYYY`() {
         val out = DateFormat.formatEventDateRange(

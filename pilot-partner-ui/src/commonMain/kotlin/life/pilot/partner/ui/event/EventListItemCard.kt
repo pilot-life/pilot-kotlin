@@ -28,10 +28,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import life.pilot.partner.sdk.model.EventListItem
 import life.pilot.partner.ui.util.DateFormat
-import java.time.ZoneId
+import kotlinx.datetime.TimeZone
 
 /**
  * Mirrors `EventCard.tsx`:
@@ -50,7 +50,7 @@ fun EventListItemCard(
     imageUrl: String? = null,
     addressLine: String? = null,
     ticketsRemaining: Int? = null,
-    zone: ZoneId = ZoneId.systemDefault(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
     onClick: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme

@@ -35,10 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Search + date-range filter strip rendered above an [EventList].
@@ -94,7 +95,7 @@ fun EventSearchFilterBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             DateChip(
-                label = filters.startsAfter?.let { "Starts after ${DateChipFormat.format(it)}" }
+                label = filters.startsAfter?.let { "Starts after ${formatChipDate(it)}" }
                     ?: "Starts after…",
                 isSet = filters.startsAfter != null,
                 onClick = { showStartPicker = true },
@@ -102,7 +103,7 @@ fun EventSearchFilterBar(
                 testTagRoot = EventSearchFilterBarTestTags.StartsAfterChip,
             )
             DateChip(
-                label = filters.endsBefore?.let { "Ends before ${DateChipFormat.format(it)}" }
+                label = filters.endsBefore?.let { "Ends before ${formatChipDate(it)}" }
                     ?: "Ends before…",
                 isSet = filters.endsBefore != null,
                 onClick = { showEndPicker = true },
@@ -212,7 +213,7 @@ private fun DatePickerSheet(
     onPick: (LocalDate) -> Unit,
 ) {
     val pickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initial?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+        initialSelectedDateMillis = initial?.atStartOfDayIn(TimeZone.currentSystemDefault())?.toEpochMilliseconds(),
     )
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -221,7 +222,7 @@ private fun DatePickerSheet(
                 onClick = {
                     val millis = pickerState.selectedDateMillis
                     if (millis != null) {
-                        val picked = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val picked = Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.currentSystemDefault()).date
                         onPick(picked)
                     }
                 },
@@ -233,7 +234,14 @@ private fun DatePickerSheet(
     }
 }
 
-private val DateChipFormat = DateTimeFormatter.ofPattern("MMM d, yyyy")
+private fun formatChipDate(d: LocalDate): String {
+    val month = when (d.monthNumber) {
+        1 -> "Jan"; 2 -> "Feb"; 3 -> "Mar"; 4 -> "Apr"; 5 -> "May"; 6 -> "Jun"
+        7 -> "Jul"; 8 -> "Aug"; 9 -> "Sep"; 10 -> "Oct"; 11 -> "Nov"; 12 -> "Dec"
+        else -> d.month.name.take(3)
+    }
+    return "$month ${d.dayOfMonth}, ${d.year}"
+}
 
 object EventSearchFilterBarTestTags {
     const val Root = "EventSearchFilterBar.root"

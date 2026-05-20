@@ -43,7 +43,7 @@ fun CheckoutSheet(
     var email by remember { mutableStateOf(initialPatron.email.orEmpty()) }
     var phone by remember { mutableStateOf(initialPatron.phone.orEmpty()) }
 
-    val emailValid = email.isBlank() || android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    val emailValid = email.isBlank() || EmailRegex.matches(email)
     val canSubmit = !isSubmitting && email.isNotBlank() && emailValid
 
     Column(
@@ -136,6 +136,14 @@ fun CheckoutSheet(
         }
     }
 }
+
+/**
+ * Portable email validation. RFC 5322 is unbounded — we use the
+ * "obviously good enough" pattern that pilot-frontend uses for the
+ * patron form: one or more chars, '@', one or more chars, '.', one or
+ * more chars. Server-side validation is authoritative.
+ */
+private val EmailRegex = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
 object CheckoutSheetTestTags {
     const val Root = "CheckoutSheet.root"

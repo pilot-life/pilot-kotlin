@@ -14,7 +14,8 @@ import life.pilot.partner.sdk.model.InventorySnapshot
 import life.pilot.partner.ui.event.EventListFilters
 import life.pilot.partner.ui.event.EventListState
 import kotlinx.coroutines.CancellationException
-import java.time.ZoneId
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 
 /**
  * Optional ViewModel that wires the SDK to [EventListState] and the
@@ -31,7 +32,7 @@ import java.time.ZoneId
  */
 class EventsViewModel(
     private val client: PilotPartnerClient,
-    private val zone: ZoneId = ZoneId.systemDefault(),
+    private val zone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
 
     private val _events = MutableStateFlow(EventListState())
@@ -80,8 +81,7 @@ class EventsViewModel(
             try {
                 val page = client.events.list(
                     startsAfter = _filters.value.startsAfter
-                        ?.atStartOfDay(zone)
-                        ?.toInstant()
+                        ?.atStartOfDayIn(zone)
                         ?.toString(),
                     cursor = current.nextCursor,
                 )
@@ -135,6 +135,6 @@ class EventsViewModel(
 
     private fun describe(e: Throwable): String = when (e) {
         is PartnerException -> e.message ?: e.code
-        else -> e.message ?: e.javaClass.simpleName
+        else -> e.message ?: (e::class.simpleName ?: "Unknown error")
     }
 }
