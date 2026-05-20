@@ -3,6 +3,47 @@
 This is a long-form companion to the [README](../README.md). Use it when
 you're wiring the SDK into a real partner app.
 
+## 0a. Platforms
+
+Both artifacts are Kotlin Multiplatform:
+
+| Target | SDK | UI |
+| --- | --- | --- |
+| Android | ✅ | ✅ |
+| JVM (backend, CLI) | ✅ | — (Compose Multiplatform doesn't target plain JVM) |
+| iOS arm64 (device) | ✅ via `PilotPartnerSdk.xcframework` | ✅ via `PilotPartnerUi.framework` (Compose Multiplatform iOS) |
+| iOS x64 / arm64 simulator | ✅ | ✅ |
+
+iOS deployment floor: **iOS 14**. Distribute the XCFramework via
+Swift Package Manager (Pilot-hosted release URL) or by drag-dropping
+the `.xcframework` into Xcode.
+
+## 0b. Migration notes (v0.2.0 — KMP)
+
+Previous v0.1.x consumers — short list of breaking changes when you
+upgrade:
+
+- `PartnerException` no longer extends `java.io.IOException`. It extends
+  `Exception`. Code catching `PartnerException` keeps working; code
+  catching raw `IOException` to catch SDK errors no longer does.
+- `PilotPartnerClient.Builder.logging(...)` takes
+  `io.ktor.client.plugins.logging.LogLevel` (e.g. `LogLevel.INFO`)
+  instead of `okhttp3.logging.HttpLoggingInterceptor.Level`.
+- `PilotPartnerClient.Builder.configureHttpClient { … }` receives an
+  `HttpClientConfig<*>` (Ktor) instead of `OkHttpClient.Builder`.
+  Install Ktor plugins or configure the engine via the Ktor DSL.
+- `EventsApi.inventory(...)` returns `InventoryResponse(code, etag, body)`
+  — a plain data class — instead of `retrofit2.Response<InventorySnapshot>`.
+  Read `.code` / `.etag` / `.body` as properties.
+- (UI module only) `TicketSelectionState.subtotal(...)` returns
+  `com.ionspin.kotlin.bignum.decimal.BigDecimal` instead of
+  `java.math.BigDecimal`. Same arithmetic, KMP-portable.
+- (UI module only) `zone` parameters on all UI composables are now
+  `kotlinx.datetime.TimeZone` instead of `java.time.ZoneId`.
+- `Retrofit` and OkHttp internals are gone — the underlying HTTP client
+  is now Ktor. OkHttp is still used as the JVM/Android engine, so
+  network behavior (TLS, proxies, certificate pinning) carries over.
+
 ## 0. What you get on the classpath
 
 Both artifacts ship a deliberately small set of `api`-scoped transitive

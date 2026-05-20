@@ -1,15 +1,17 @@
 # pilot-kotlin
 
-Kotlin SDK and Jetpack Compose UI components for the **Pilot Partner Inventory API** (PIL-2370).
+Kotlin Multiplatform SDK and Compose Multiplatform UI components for
+the **Pilot Partner Inventory API** (PIL-2370).
 
 Two artifacts ship from this repo:
 
 | Module | Artifact | What it gives you |
 | --- | --- | --- |
-| `pilot-partner-sdk` | `life.pilot:pilot-partner-sdk` | Pure Kotlin/JVM client for the partner API: typed APIs, header auth, idempotency, rate-limit retry, typed errors, webhook envelope + HMAC verification. No Android dependencies. |
-| `pilot-partner-ui` | `life.pilot:pilot-partner-ui-compose` | Android library with Jetpack Compose components that mirror pilot-frontend's event-card and event-detail/ticket-selection patterns. Depends on the SDK. |
+| `pilot-partner-sdk` | `life.pilot:pilot-partner-sdk` | KMP client (Android + JVM + iOS) for the partner API: typed APIs, header auth, idempotency, rate-limit retry, typed errors, webhook envelope + HMAC verification. iOS gets the `PilotPartnerSdk.xcframework`. |
+| `pilot-partner-ui` | `life.pilot:pilot-partner-ui-compose` | Compose Multiplatform library (Android + iOS) with components that mirror pilot-frontend's event-card and event-detail/ticket-selection patterns. Depends on the SDK. iOS gets the `PilotPartnerUi.framework`. |
 
-Use only the SDK on a backend (webhook ingestion, automation). Use both on Android.
+Use only the SDK on a backend (webhook ingestion, automation, JVM
+services). Use both on Android or iOS apps.
 
 ## Install
 
@@ -180,11 +182,43 @@ CheckoutSheet(
 ## Build & test
 
 ```bash
-./gradlew build                      # compile both modules
-./gradlew :pilot-partner-sdk:test    # SDK unit tests (MockWebServer)
-./gradlew :pilot-partner-ui:testReleaseUnitTest   # UI JVM unit tests
+./gradlew build                                   # compile both modules (all targets)
+./gradlew :pilot-partner-sdk:jvmTest              # SDK unit tests (Ktor MockEngine)
+./gradlew :pilot-partner-ui:testReleaseUnitTest   # UI common unit tests (Android variant)
 ./gradlew :pilot-partner-ui:connectedAndroidTest  # Compose UI tests (emulator)
-./gradlew publishToMavenLocal        # publish to ~/.m2 for local apps
+./gradlew :pilot-partner-sdk:assembleXCFramework  # iOS framework for SwiftPM
+./gradlew publishToMavenLocal                     # publish to ~/.m2 for local apps
+```
+
+## iOS
+
+The SDK exposes `PilotPartnerSdk.xcframework` and the UI exposes
+`PilotPartnerUi.framework`. After running `assembleXCFramework`:
+
+```
+pilot-partner-sdk/build/XCFrameworks/release/PilotPartnerSdk.xcframework
+```
+
+The framework contains `ios-arm64` and `ios-arm64_x86_64-simulator`
+slices. Drop into an Xcode project via Swift Package Manager (point the
+package URL at a Pilot-hosted GitHub release) or by manually adding the
+`.xcframework` as an embedded binary.
+
+Swift consumer call sites look like:
+
+```swift
+import PilotPartnerSdk
+
+let client = PilotPartnerClient.companion.builder()
+    .apiKey(value: "pk_live_…")
+    .organizationUuid(value: "…")
+    .environment(env: PartnerEnvironment.sandbox)
+    .build()
+
+Task {
+    let page = try await client.events.list(startsAfter: nil, cursor: nil, limit: 20)
+    for event in page.events { print(event.name) }
+}
 ```
 
 ## Versioning
