@@ -108,7 +108,7 @@ class EventsViewModel(
                 _detail.value = client.events.get(eventUuid)
                 val inv = client.events.inventory(eventUuid)
                 if (inv.isSuccessful) {
-                    _inventory.value = inv.body()
+                    _inventory.value = inv.body
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -124,7 +124,7 @@ class EventsViewModel(
         viewModelScope.launch {
             try {
                 val resp = client.events.inventory(eventUuid, ifNoneMatch)
-                if (resp.code() == 200) _inventory.value = resp.body()
+                if (resp.code == 200) _inventory.value = resp.body
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Throwable) {
