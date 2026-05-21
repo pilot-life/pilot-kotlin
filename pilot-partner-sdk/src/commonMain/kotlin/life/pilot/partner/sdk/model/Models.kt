@@ -95,6 +95,57 @@ data class InventorySnapshot(
 )
 
 @Serializable
+data class RtaCreateRequest(
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phone: String,
+    val company: String? = null,
+    val companyWebsite: String? = null,
+    val titleRole: String? = null,
+    val socialMediaHandle: String? = null,
+    val followerCount: Int? = null,
+    val additionalGuests: Int? = null,
+    val visitDays: String? = null,
+    val reasonForAttending: String? = null,
+    val occupationIds: List<Int>? = null,
+    val socialMediaIds: List<Int>? = null,
+    val designerIds: List<Int>? = null,
+)
+
+@Serializable
+data class RtaCreateResponse(
+    val success: Boolean,
+    val message: String,
+)
+
+@Serializable
+data class RegistrationGuest(
+    val firstName: String,
+    val lastName: String,
+    val email: String? = null,
+    val phone: String? = null,
+    val ageVerified: Boolean? = null,
+)
+
+@Serializable
+data class RegistrationCreateRequest(
+    val ticketTypeUUID: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phone: String,
+    val guests: List<RegistrationGuest>? = null,
+)
+
+@Serializable
+data class RegistrationCreateResponse(
+    val registrationId: Long,
+    /** Always `"CREATED"` on the synchronous 201; the underlying row is PENDING. */
+    val status: String,
+)
+
+@Serializable
 data class ClaimItemRequest(
     val ticketTypeUUID: String,
     val quantity: Int,

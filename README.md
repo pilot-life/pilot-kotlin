@@ -179,6 +179,61 @@ CheckoutSheet(
 )
 ```
 
+### Request to Attend & Registration
+
+`EventDetailScreen` promotes a **Request to Attend** button when the
+event has `rta?.enabled == true`, and renders a **Registration** section
+listing every entry in `InventorySnapshot.registrationTicketTypes` with
+its own Register button. Both hooks default to reading the API directly
+— no closure wiring is required.
+
+```kotlin
+EventDetailScreen(
+    event = detail,
+    inventory = inv,
+    onRequestToAttend = { evt -> showRtaSheet(evt) },
+    onRegister = { ticketType -> showRegistrationSheet(ticketType) },
+    onContinue = { selections -> startPaidCheckout(selections) },
+)
+```
+
+Drop-in form composables — host them in a `ModalBottomSheet`:
+
+```kotlin
+import life.pilot.partner.ui.checkout.RtaFormSheet
+import life.pilot.partner.ui.checkout.RegistrationFormSheet
+
+RtaFormSheet(
+    onSubmit = { body ->
+        scope.launch {
+            client.events.requestToAttend(
+                eventUuid = event.eventUUID,
+                idempotencyKey = IdempotencyKey.generate(),
+                body = body,
+            )
+        }
+    },
+)
+
+RegistrationFormSheet(
+    ticketType = ticketType,
+    onSubmit = { body ->
+        scope.launch {
+            client.events.createRegistration(
+                eventUuid = event.eventUUID,
+                idempotencyKey = IdempotencyKey.generate(),
+                body = body,
+            )
+        }
+    },
+)
+```
+
+Registration is cart-style: the response carries `status = "CREATED"`
+but the underlying row is **PENDING** until the customer completes
+checkout on the host's embed. Surface that pending state to the
+customer until checkout confirms it.
+
 ## Build & test
 
 ```bash

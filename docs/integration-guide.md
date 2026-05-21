@@ -51,9 +51,12 @@ dependencies — anything that appears in a public type signature.
 Consuming `life.pilot:pilot-partner-sdk` pulls in:
 
 - `kotlin-stdlib`, `kotlinx-coroutines-core`, `kotlinx-serialization-json`
-- `okhttp` and `okhttp-logging-interceptor` (the SDK builder takes
-  `HttpLoggingInterceptor.Level` as a parameter)
-- `retrofit`
+- `io.ktor:ktor-client-core` (the SDK builder takes Ktor's
+  `LogLevel` and exposes an `HttpClientConfig` escape hatch)
+- `io.ktor:ktor-client-okhttp` on JVM/Android, `io.ktor:ktor-client-darwin`
+  on iOS — the engine implementations Ktor delegates to
+- `com.ionspin.kotlin:bignum` (KMP-portable `BigDecimal` used in `subtotal(...)`)
+- `org.jetbrains.kotlinx:kotlinx-datetime` (KMP-portable `TimeZone`)
 
 Consuming `life.pilot:pilot-partner-ui` pulls in the SDK plus the
 Compose BOM, Material 3, Coil, and `lifecycle-viewmodel-compose` (the
@@ -145,7 +148,9 @@ body content and headers tell you which:
 If you turn the SDK's logging up:
 
 ```kotlin
-.logging(HttpLoggingInterceptor.Level.BODY)
+import io.ktor.client.plugins.logging.LogLevel
+// ...
+.logging(LogLevel.BODY)
 ```
 
 every request and response (including the partner-router 404 JSON) is
@@ -324,8 +329,11 @@ with `retryAfterSeconds`. Surface this to callers — don't loop in-app.
 
 ```kotlin
 .maxRateLimitRetries(3)        // raise it if your background worker can wait
-.configureHttpClient { ok ->   // add an OkHttp Dispatcher cap if needed
-    ok.dispatcher().maxRequestsPerHost = 4
+.configureHttpClient {         // Ktor HttpClientConfig — engine-specific tuning goes here
+    engine {
+        // OkHttp engine (JVM/Android): cap concurrent requests, install
+        // a custom dispatcher, etc. — see the Ktor OkHttp engine docs.
+    }
 }
 ```
 
@@ -337,8 +345,8 @@ nothing has changed — significant bandwidth win on polling loops.
 
 ```kotlin
 val resp = client.events.inventory(eventUuid, ifNoneMatch = lastEtag)
-when (resp.code()) {
-    200 -> { lastEtag = resp.headers()["ETag"]; render(resp.body()!!) }
+when (resp.code) {
+    200 -> { lastEtag = resp.etag; render(resp.body!!) }
     304 -> { /* keep showing cached snapshot */ }
 }
 ```
@@ -464,41 +472,127 @@ layout stays stable. No network requests are made for the missing image.
 pilot-frontend's `TicketSelectHero`:
 
 - **Request to Attend** — full-width primary button promoted above the
-  ticket list when the event uses RTA gating.
-- **Registration** — a separate section underneath the regular ticket
-  list listing free / RSVP ticket types with their own Register
-  button. Same selection state, distinct CTA.
+  ticket list when the event uses RTA gating (`event.rta?.enabled == true`).
+- **Registration** — a section listing free / RSVP ticket types from
+  `InventorySnapshot.registrationTicketTypes`. Each row has its own
+  Register button.
+
+Both CTAs read from the partner API by default — no closure wiring is
+required:
 
 ```kotlin
 EventDetailScreen(
     event = detail,
     inventory = inv,
-    isRequestToAttendEnabled = { evt -> evt.eventUUID in rtaEvents },
-    registrationTicketTypesFor = { evt -> myRegistrationLookup.forEvent(evt.eventUUID) },
-    onRequestToAttend = { evt -> navigateToRtaFlow(evt) },
-    onRegister = { selections -> startFreeCheckout(selections) },
+    // Both hooks default to reading from the API; you only need to
+    // override them if you want to gate the UI on your own state.
+    // isRequestToAttendEnabled = { it.rta?.enabled == true },
+    // registrationTicketTypesFor = { it.registrationTicketTypes },
+    onRequestToAttend = { evt -> showRtaSheet(evt) },
+    onRegister = { ticketType -> showRegistrationSheet(ticketType) },
     onContinue = { selections -> startPaidCheckout(selections) },
 )
 ```
 
-### The honest API caveat
+### RTA form: `RtaFormSheet`
 
-The partner API surface in PR1 does **not** expose:
+`life.pilot.partner.ui.checkout.RtaFormSheet` is a minimum-viable
+Request-to-Attend form. It collects the four required fields
+(`firstName`, `lastName`, `email`, `phone`) from `openapi.yaml`'s
+`RtaCreateRequest` and emits the populated request via `onSubmit`. Host
+it in a `ModalBottomSheet`, `Dialog`, or full screen — caller's choice.
 
-- a `requestToAttend` flag on `EventDetail`, or any RTA configuration
-  (banner copy, additional-guest limits, etc.)
-- a separate `registrationTicketTypes` array on `EventDetail` or
-  `InventorySnapshot`. Today, every `TicketTypeRow` is "purchase".
+```kotlin
+import life.pilot.partner.sdk.auth.IdempotencyKey
+import life.pilot.partner.ui.checkout.RtaFormSheet
 
-That's why the two hooks above take a closure rather than reading a
-field. Today the partner has to source RTA / registration state from
-their own backend (e.g. a small companion API keyed by `eventUUID`).
-Once the partner API exposes those fields natively, the closures will
-fold down to one-line readers from the SDK model — the UI surface
-won't change.
+var submitting by remember { mutableStateOf(false) }
+var error by remember { mutableStateOf<String?>(null) }
 
-If you need RTA / registration support, file the schema additions on
-the backend team as a follow-up PR; this UI is ready to consume them.
+ModalBottomSheet(onDismissRequest = onDismiss) {
+    RtaFormSheet(
+        isSubmitting = submitting,
+        error = error,
+        onSubmit = { body ->
+            scope.launch {
+                submitting = true; error = null
+                try {
+                    client.events.requestToAttend(
+                        eventUuid = event.eventUUID,
+                        idempotencyKey = IdempotencyKey.generate(),
+                        body = body,
+                    )
+                    onDismiss()
+                } catch (e: PartnerException) {
+                    error = e.message
+                } finally {
+                    submitting = false
+                }
+            }
+        },
+    )
+}
+```
+
+Optional `RtaCreateRequest` fields (company, social handles, occupation
+IDs, additional guests, etc.) are **not** surfaced by `RtaFormSheet`.
+Partners who want richer onboarding should compose their own form and
+call `client.events.requestToAttend(...)` directly.
+
+### Registration form: `RegistrationFormSheet`
+
+`life.pilot.partner.ui.checkout.RegistrationFormSheet` is the
+registration equivalent. It takes a `TicketTypeRow` from
+`InventorySnapshot.registrationTicketTypes` and collects the five
+required fields for `RegistrationCreateRequest`
+(`ticketTypeUUID` is auto-set from the passed `ticketType`, plus the
+four PII fields).
+
+```kotlin
+import life.pilot.partner.ui.checkout.RegistrationFormSheet
+
+ModalBottomSheet(onDismissRequest = onDismiss) {
+    RegistrationFormSheet(
+        ticketType = ticketType,
+        isSubmitting = submitting,
+        error = error,
+        onSubmit = { body ->
+            scope.launch {
+                submitting = true; error = null
+                try {
+                    client.events.createRegistration(
+                        eventUuid = event.eventUUID,
+                        idempotencyKey = IdempotencyKey.generate(),
+                        body = body,
+                    )
+                    onDismiss()
+                } catch (e: PartnerException) {
+                    error = e.message
+                } finally {
+                    submitting = false
+                }
+            }
+        },
+    )
+}
+```
+
+The guests list and age-verification flow aren't surfaced. Partners
+that need them should compose their own form and call
+`client.events.createRegistration(...)` directly.
+
+### Registration is cart-style (PENDING until checkout)
+
+`POST /events/{eventUuid}/registrations` returns a
+`RegistrationCreateResponse` with `status == "CREATED"` on the
+synchronous 201 — the underlying row is **PENDING**. The host's
+checkout flow drives the PENDING → APPROVED transition on the customer
+side; the SDK exposes no "approve" call.
+
+Surface this clearly to the customer until they've completed checkout
+on the host's embed — e.g. show a *"Registration pending — complete
+checkout to confirm"* banner / badge / intermediate screen. The row
+holds capacity but isn't yet a confirmed attendee.
 
 ## 7. UI component conventions
 
@@ -533,11 +627,11 @@ without depending on user-facing text.
 ## 8. Threading & lifecycle
 
 - All SDK APIs are `suspend fun` — call them from a coroutine scope.
-- Reuse one `PilotPartnerClient` per app process. The underlying OkHttp
-  client pools connections and threads — making a new client per request
-  defeats both.
+- Reuse one `PilotPartnerClient` per app process. The underlying Ktor
+  client pools connections and engine threads — making a new client per
+  request defeats both.
 - Call `client.close()` on app shutdown if you want graceful release of
-  the OkHttp dispatcher (optional — leaking it during process death is
+  the Ktor engine (optional — leaking it during process death is
   harmless).
 
 ## 9. Network errors and timeouts
@@ -575,22 +669,28 @@ The builder exposes the two safe-to-tune timeouts:
 | `connectTimeout(seconds)` | `10` | Customer base on flaky / high-latency networks (rural, in-venue Wi-Fi). |
 | `callTimeout(seconds)` | `30` | Background workers willing to wait for slow flows. **Do not raise** on user-blocking screens — show a spinner and fail fast. |
 
-The underlying OkHttp `readTimeout` defaults to `10s` and is the timeout
+Ktor's per-engine request timeout (`HttpTimeout` plugin) is the timeout
 that **actually fires in production when the backend hangs** — it
-manifests as a `SocketTimeoutException` propagated through the SDK and
-arrives at your `catch` as `PartnerException.Network`. If you need a
-different read timeout, set it via the escape hatch:
+manifests as a `SocketTimeoutException` from the underlying engine
+(OkHttp on JVM/Android, NSURLSession on iOS) propagated through the
+SDK and arrives at your `catch` as `PartnerException.Network`. If you
+need a different request timeout, set it via the escape hatch:
 
 ```kotlin
-.configureHttpClient { it.readTimeout(15, TimeUnit.SECONDS) }
+import io.ktor.client.plugins.HttpTimeout
+
+.configureHttpClient {
+    install(HttpTimeout) {
+        requestTimeoutMillis = 15_000
+    }
+}
 ```
 
-> ⚠️ Avoid `callTimeout` for "kill the request entirely". When OkHttp's
-> call-timeout watchdog fires, the resulting `InterruptedIOException`
-> escapes the SDK's typed-exception wrapping (it's thrown from a layer
-> above the interceptor chain). Prefer `readTimeout` / `connectTimeout`
-> for tight bounds, and use `callTimeout` only as a generous outer
-> safety net.
+> ⚠️ Avoid `callTimeout` for "kill the request entirely". On the JVM
+> engine, the resulting `InterruptedIOException` can escape the SDK's
+> typed-exception wrapping. Prefer the per-stage timeouts
+> (`connectTimeout` / Ktor's `requestTimeoutMillis`) for tight bounds,
+> and use `callTimeout` only as a generous outer safety net.
 
 ### Don't only catch `PartnerException` in coroutines
 
@@ -627,8 +727,8 @@ What they cover:
   `$$serializer` helpers (otherwise R8 strips them and JSON parsing
   silently fails at runtime with `SerializationException: Serializer for
   class … is not found`).
-- Retrofit API interfaces — annotations are kept so reflection at
-  call-site works.
+- Ktor's reflective serializer-format wiring (`kotlinx-serialization`
+  plugins) — kept so JSON content negotiation resolves at runtime.
 
 The UI module ships matching rules at `consumer-rules.pro` covering the
 same types and the SDK's webhooks.
@@ -647,5 +747,5 @@ Checklist:
 - [ ] Webhook endpoint behind HTTPS with the HMAC verifier wired in.
 - [ ] Idempotency keys persisted alongside the local hold record.
 - [ ] Rate-limit retries tuned for your traffic profile.
-- [ ] Observability — wrap the client with an OkHttp interceptor that
-  emits your metrics (`configureHttpClient { it.addInterceptor(…) }`).
+- [ ] Observability — install a Ktor plugin or interceptor that emits
+  your metrics (`configureHttpClient { install(MyMetricsPlugin) }`).
