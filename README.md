@@ -8,7 +8,7 @@ Two artifacts ship from this repo:
 | Module | Artifact | What it gives you |
 | --- | --- | --- |
 | `pilot-partner-sdk` | `life.pilot:pilot-partner-sdk` | KMP client (Android + JVM + iOS) for the partner API: typed APIs, header auth, idempotency, rate-limit retry, typed errors, webhook envelope + HMAC verification. iOS gets the `PilotPartnerSdk.xcframework`. |
-| `pilot-partner-ui` | `life.pilot:pilot-partner-ui-compose` | Compose Multiplatform library (Android + iOS) with components that mirror pilot-frontend's event-card and event-detail/ticket-selection patterns. Depends on the SDK. iOS gets the `PilotPartnerUi.framework`. |
+| `pilot-partner-ui` | `life.pilot:pilot-partner-ui` | Compose Multiplatform library (Android + iOS) with components that mirror pilot-frontend's event-card and event-detail/ticket-selection patterns. Depends on the SDK. iOS gets the `PilotPartnerUi.framework`. Gradle's metadata resolution picks the per-target artifact automatically (`-android` AAR or `-ios*` klib). |
 
 Use only the SDK on a backend (webhook ingestion, automation, JVM
 services). Use both on Android or iOS apps.
@@ -36,7 +36,7 @@ dependencyResolutionManagement {
 dependencies {
     implementation("life.pilot:pilot-partner-sdk:0.1.0")
     // Android only:
-    implementation("life.pilot:pilot-partner-ui-compose:0.1.0")
+    implementation("life.pilot:pilot-partner-ui:0.1.0")
 }
 ```
 

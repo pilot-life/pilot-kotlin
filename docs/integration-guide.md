@@ -55,7 +55,7 @@ Consuming `life.pilot:pilot-partner-sdk` pulls in:
   `HttpLoggingInterceptor.Level` as a parameter)
 - `retrofit`
 
-Consuming `life.pilot:pilot-partner-ui-compose` pulls in the SDK plus the
+Consuming `life.pilot:pilot-partner-ui` pulls in the SDK plus the
 Compose BOM, Material 3, Coil, and `lifecycle-viewmodel-compose` (the
 shipped `EventsViewModel` is created via `viewModel(factory = …)`).
 
