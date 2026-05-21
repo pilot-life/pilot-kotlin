@@ -32,7 +32,31 @@ data class EventDetail(
     val imageUrl: String? = null,
     val description: String? = null,
     val shortDescription: String? = null,
+    /**
+     * Request-to-Attend metadata. `null` on older deployments that don't
+     * yet emit it. When present and `enabled == true`, partners should
+     * render an RTA submission form. See openapi RtaInfo schema.
+     */
+    val rta: RtaInfo? = null,
 )
+
+@Serializable
+data class RtaInfo(
+    val enabled: Boolean,
+    val banner: String? = null,
+    val showBanner: Boolean = false,
+    val additionalGuestLimit: Int = 0,
+    val enableAdditionalGuest: Boolean = false,
+    val designers: List<RtaOption> = emptyList(),
+    val occupations: List<RtaOption> = emptyList(),
+    val socialMedia: List<RtaSocialMediaOption> = emptyList(),
+)
+
+@Serializable
+data class RtaOption(val id: Int, val name: String)
+
+@Serializable
+data class RtaSocialMediaOption(val id: Int, val name: String, val url: String)
 
 @Serializable
 data class TicketTypeRow(
@@ -52,12 +76,22 @@ data class InventoryEvent(
     val eventUUID: String,
     val name: String,
     val startDate: String,
+    /** Request-to-Attend metadata; see [RtaInfo]. */
+    val rta: RtaInfo? = null,
 )
 
 @Serializable
 data class InventorySnapshot(
     val event: InventoryEvent,
     val ticketTypes: List<TicketTypeRow>,
+    /**
+     * Registration ticket types (separate from purchasable [ticketTypes]).
+     * Lifecycle differs — partners pass `ticketTypeUUID` to
+     * `POST /events/{eventUuid}/registrations`, not `/claims`. Empty
+     * on events that don't accept registrations or on older deployments
+     * that don't yet emit this field.
+     */
+    val registrationTicketTypes: List<TicketTypeRow> = emptyList(),
 )
 
 @Serializable

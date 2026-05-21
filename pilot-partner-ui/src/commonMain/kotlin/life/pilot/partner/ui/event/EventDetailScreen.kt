@@ -74,27 +74,27 @@ fun EventDetailScreen(
     zone: TimeZone = TimeZone.currentSystemDefault(),
     currencyPrefix: String = "$",
     /**
-     * Show a "Request to Attend" button above the ticket list. The
-     * partner API doesn't expose RTA state today — pass a partner-side
-     * predicate that resolves it (e.g. by looking up event policy in
-     * your own backend). See `kotlin-ui.md` § Request to Attend.
+     * Predicate deciding whether the "Request to Attend" button shows.
+     * Defaults to `event.rta?.enabled == true` — partner API emits this
+     * on `EventDetail.rta` directly. Override only if you want custom
+     * gating (e.g. hide RTA in some app build flavors).
      */
-    isRequestToAttendEnabled: (EventDetail) -> Boolean = { false },
+    isRequestToAttendEnabled: (EventDetail) -> Boolean = { it.rta?.enabled == true },
     /**
-     * Surface a separate "Register" CTA + a list of registration ticket
-     * types alongside the regular purchase tickets. Same gap as RTA:
-     * the partner API doesn't yet expose which ticket types are
-     * registration. Partners that wire this hook supply the
-     * registration list from their own data source.
+     * Source for the registration ticket types listed under the
+     * "Registration" section. Defaults to `inventory.registrationTicketTypes`
+     * — the partner API emits this array on the inventory response.
+     * Override only if your app injects registration tickets from a
+     * different source.
      */
-    registrationTicketTypesFor: (EventDetail) -> List<life.pilot.partner.sdk.model.TicketTypeRow> = { emptyList() },
+    registrationTicketTypesFor: (InventorySnapshot) -> List<life.pilot.partner.sdk.model.TicketTypeRow> = { it.registrationTicketTypes },
     onRequestToAttend: (EventDetail) -> Unit = {},
     onRegister: (List<TicketSelection>) -> Unit = {},
     onContinue: (List<TicketSelection>) -> Unit = {},
     onRetry: () -> Unit = {},
 ) {
     val showRta = isRequestToAttendEnabled(event)
-    val registrationTickets = registrationTicketTypesFor(event)
+    val registrationTickets = inventory?.let(registrationTicketTypesFor) ?: emptyList()
     Box(modifier = modifier.fillMaxSize().testTag(EventDetailScreenTestTags.Root)) {
         Column(
             modifier = Modifier
