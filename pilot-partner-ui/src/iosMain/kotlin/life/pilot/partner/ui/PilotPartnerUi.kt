@@ -1,11 +1,30 @@
 package life.pilot.partner.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
 import life.pilot.partner.sdk.PartnerEnvironment
 import life.pilot.partner.sdk.PilotPartnerClient
@@ -78,7 +97,13 @@ object PilotPartnerUi {
  * Two-screen navigation inside one Compose UIViewController: list ↔ detail.
  * Lifted out of the factory for readability; not part of the public iOS
  * API surface (Swift consumers always come through [PilotPartnerUi.shared.eventsScreen]).
+ *
+ * Navigation switches as soon as the user taps an event (not when the
+ * detail call completes), so the loading window is visible and a
+ * failed call doesn't leave the user stranded on the list with no
+ * feedback.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EventsScreenRoot(client: PilotPartnerClient) {
     val vm = remember { EventsViewModel(client) }
@@ -90,29 +115,86 @@ private fun EventsScreenRoot(client: PilotPartnerClient) {
     val detailError by vm.detailError.collectAsState()
 
     var selectedEventUuid: String? by remember { mutableStateOf(null) }
+    val onBack: () -> Unit = { selectedEventUuid = null }
 
-    if (selectedEventUuid != null && detail != null) {
-        EventDetailScreen(
-            event = detail!!,
-            inventory = inventory,
-            isLoading = detailLoading,
-            error = detailError,
-            onRetry = { selectedEventUuid?.let(vm::loadEvent) },
-            onRequestToAttend = { /* partners hook into this from SwiftUI via a custom screen */ },
-            onRegister = { /* same — registration flow lives partner-side */ },
-            onContinue = { /* same — paid checkout lives partner-side */ },
-        )
-    } else {
-        EventListWithFilters(
-            state = events,
-            filters = filters,
-            onFiltersChange = vm::updateFilters,
-            onLoadMore = { vm.loadMoreEvents() },
-            onRefresh = { vm.refreshEvents() },
-            onEventClick = { item ->
-                selectedEventUuid = item.eventUUID
-                vm.loadEvent(item.eventUUID)
-            },
-        )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (selectedEventUuid != null) "Event details" else "Events") },
+                navigationIcon = {
+                    if (selectedEventUuid != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        if (selectedEventUuid != null) {
+            val loadedDetail = detail
+            when {
+                loadedDetail != null && loadedDetail.eventUUID == selectedEventUuid -> EventDetailScreen(
+                    event = loadedDetail,
+                    inventory = inventory,
+                    isLoading = detailLoading,
+                    error = detailError,
+                    modifier = Modifier.padding(padding),
+                    onRetry = { selectedEventUuid?.let(vm::loadEvent) },
+                    onRequestToAttend = { /* partners hook into this from SwiftUI via a custom screen */ },
+                    onRegister = { /* same — registration flow lives partner-side */ },
+                    onContinue = { /* same — paid checkout lives partner-side */ },
+                )
+
+                detailError != null -> ErrorPlaceholder(
+                    message = detailError ?: "Couldn't load event",
+                    onRetry = { selectedEventUuid?.let(vm::loadEvent) },
+                    modifier = Modifier.padding(padding),
+                )
+
+                else -> LoadingPlaceholder(modifier = Modifier.padding(padding))
+            }
+        } else {
+            EventListWithFilters(
+                state = events,
+                filters = filters,
+                onFiltersChange = vm::updateFilters,
+                onLoadMore = { vm.loadMoreEvents() },
+                onRefresh = { vm.refreshEvents() },
+                onEventClick = { item ->
+                    selectedEventUuid = item.eventUUID
+                    vm.loadEvent(item.eventUUID)
+                },
+                modifier = Modifier.padding(padding).fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingPlaceholder(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun ErrorPlaceholder(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        IconButton(onClick = onRetry) {
+            Text("Retry", style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
