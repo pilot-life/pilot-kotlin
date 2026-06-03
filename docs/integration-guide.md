@@ -613,10 +613,98 @@ it into a ViewModel and pass it down.
 
 ### Theming
 
-`PilotPartnerTheme` is a thin `MaterialTheme` wrapper. Components only
-read `MaterialTheme.colorScheme` and `typography`, so partners with their
-own design system can wrap the components in their own `MaterialTheme`
-and the components will follow.
+Three customization tiers, picked by how much you want to override:
+
+**1. Defaults** — wrap in `PilotPartnerTheme { … }` (or skip it, the
+components are theme-agnostic). You get Pilot's forest-green palette.
+
+**2. Brand overrides via `PartnerTheme`** — fully customizable across
+all 32 Material 3 color tokens (light + dark), all 15 typography
+styles (size / weight / lineHeight / letterSpacing), all 3 shape
+buckets, and an explicit light/dark override:
+
+```kotlin
+import life.pilot.partner.ui.theme.PartnerColorScheme
+import life.pilot.partner.ui.theme.PartnerTextStyle
+import life.pilot.partner.ui.theme.PartnerTheme
+import life.pilot.partner.ui.theme.PartnerTypography
+import life.pilot.partner.ui.theme.PartnerShapes
+
+val brand = PartnerTheme(
+    light = PartnerColorScheme(
+        primary = 0xFF0A66C2,
+        onPrimary = 0xFFFFFFFF,
+        error = 0xFFE74C3C,
+    ),
+    dark = PartnerColorScheme(
+        primary = 0xFF89B7F3,
+        onPrimary = 0xFF002B5C,
+    ),
+    typography = PartnerTypography(
+        titleLarge = PartnerTextStyle(fontSizeSp = 24f, fontWeight = 700),
+    ),
+    shapes = PartnerShapes(mediumCornerDp = 16f),
+    useDarkTheme = null,         // null = follow system
+)
+
+PilotPartnerTheme(theme = brand) {
+    EventListWithFilters(...)
+}
+```
+
+Every field is nullable / has a default, so you only state the slots
+you want to change. The same `PartnerTheme` works on iOS via
+[`PilotPartnerUi.shared.eventsScreen(theme:)`](#partnertheme-from-swift).
+
+**3. Bring your own `MaterialTheme`** — partners with a design system
+already in Compose skip `PilotPartnerTheme` entirely:
+
+```kotlin
+MyAppTheme {                       // your existing MaterialTheme wrapper
+    EventDetailScreen(...)
+}
+```
+
+Components only read from `MaterialTheme.colorScheme` / `typography` /
+`shapes`, so they pick up whatever you wrap them in.
+
+#### `PartnerTheme` from Swift
+
+The iOS entry point takes the same `PartnerTheme` config as a
+parameter. Constructor args from Swift are
+`KotlinLong(value: 0x…)` for ARGB colors and `KotlinFloat(value:)` for
+sizes — both nullable, defaults skipped:
+
+```swift
+let theme = PartnerTheme(
+    light: PartnerColorScheme(
+        primary: KotlinLong(value: 0xFF0A66C2),
+        onPrimary: KotlinLong(value: 0xFFFFFFFF),
+        // … 33 other slots default to Pilot/Material
+    ),
+    dark: PartnerColorScheme(),
+    typography: PartnerTypography(),
+    shapes: PartnerShapes(),
+    useDarkTheme: nil
+)
+PilotPartnerUi.shared.eventsScreen(
+    apiKey: Secrets.apiKey,
+    organizationUuid: Secrets.organizationUuid,
+    environment: Secrets.environment,
+    baseUrl: Secrets.baseUrl,
+    gatewaySecret: Secrets.gatewaySecret,
+    theme: theme
+)
+```
+
+**Bespoke fonts.** `PartnerTheme` covers per-style text *metrics*
+(size, weight, line height, letter spacing) but not the font family.
+For a custom brand typeface:
+- **Android:** wrap with your own `MaterialTheme(typography = …)`
+  passing a `FontFamily(Font(R.font.your_brand_font))`.
+- **iOS:** loading a TTF from the app bundle through Compose
+  Multiplatform's resource system requires app-side wiring that's
+  out of scope for this config — open an issue if you need it.
 
 ### Test tags
 

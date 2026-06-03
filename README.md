@@ -130,7 +130,7 @@ import life.pilot.partner.ui.theme.PilotPartnerTheme
 import life.pilot.partner.ui.viewmodel.EventsViewModel
 
 setContent {
-    PilotPartnerTheme {                       // optional — partners can swap their own
+    PilotPartnerTheme {                       // optional — see "Theming" below
         val vm: EventsViewModel = …          // built with the same PilotPartnerClient
         val events by vm.events.collectAsState()
 
@@ -142,6 +142,28 @@ setContent {
     }
 }
 ```
+
+### Theming
+
+Fully customizable across both platforms via `PartnerTheme` — all 32
+Material 3 color tokens (light + dark), all 15 typography styles, all
+3 shape sizes, and an explicit light/dark override. Every field is
+nullable, so you only state the slots you change:
+
+```kotlin
+val brand = PartnerTheme(
+    light = PartnerColorScheme(primary = 0xFF0A66C2, onPrimary = 0xFFFFFFFF),
+    dark  = PartnerColorScheme(primary = 0xFF89B7F3, onPrimary = 0xFF002B5C),
+    shapes = PartnerShapes(mediumCornerDp = 16f),
+)
+PilotPartnerTheme(theme = brand) { EventListWithFilters(...) }
+```
+
+Or skip `PilotPartnerTheme` entirely and wrap our components in your
+own `MaterialTheme(...)` — they only read from CompositionLocal so
+they'll inherit your tokens. The full theming guide (including the
+Swift call signature for `PilotPartnerUi.shared.eventsScreen(theme:)`)
+is in [docs/integration-guide.md § Theming](docs/integration-guide.md#theming).
 
 ### Detail screen
 

@@ -30,6 +30,7 @@ import life.pilot.partner.sdk.PartnerEnvironment
 import life.pilot.partner.sdk.PilotPartnerClient
 import life.pilot.partner.ui.event.EventDetailScreen
 import life.pilot.partner.ui.event.EventListWithFilters
+import life.pilot.partner.ui.theme.PartnerTheme
 import life.pilot.partner.ui.theme.PilotPartnerTheme
 import life.pilot.partner.ui.viewmodel.EventsViewModel
 import platform.UIKit.UIViewController
@@ -66,12 +67,19 @@ import platform.UIKit.UIViewController
 object PilotPartnerUi {
     val shared: PilotPartnerUi = this
 
+    /**
+     * @param theme Brand overrides — colors, typography, shapes,
+     *   dark-mode preference. Defaults to Pilot's palette. Build from
+     *   Swift as e.g.
+     *   `PartnerTheme(light: PartnerColorScheme(primary: KotlinLong(value: 0xFF0A66C2)), …)`.
+     */
     fun eventsScreen(
         apiKey: String,
         organizationUuid: String,
         environment: String = "SANDBOX",
         baseUrl: String? = null,
         gatewaySecret: String? = null,
+        theme: PartnerTheme = PartnerTheme(),
     ): UIViewController {
         val env = runCatching { PartnerEnvironment.valueOf(environment.uppercase()) }
             .getOrDefault(PartnerEnvironment.SANDBOX)
@@ -86,7 +94,7 @@ object PilotPartnerUi {
             .build()
 
         return ComposeUIViewController {
-            PilotPartnerTheme {
+            PilotPartnerTheme(theme = theme) {
                 EventsScreenRoot(client = client)
             }
         }
