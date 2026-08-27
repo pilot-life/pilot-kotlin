@@ -96,16 +96,32 @@ fun EventListItemCard(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                event.venueName?.takeIf { it.isNotBlank() }?.let { venue ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text("$venue Presents") },
-                        colors = AssistChipDefaults.assistChipColors(
-                            disabledContainerColor = colors.primaryContainer,
-                            disabledLabelColor = colors.onPrimaryContainer,
-                        ),
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (event.featuredEvent) {
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("Featured") },
+                            colors = AssistChipDefaults.assistChipColors(
+                                disabledContainerColor = colors.tertiaryContainer,
+                                disabledLabelColor = colors.onTertiaryContainer,
+                            ),
+                        )
+                    }
+                    event.venueName?.takeIf { it.isNotBlank() }?.let { venue ->
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("$venue Presents") },
+                            colors = AssistChipDefaults.assistChipColors(
+                                disabledContainerColor = colors.primaryContainer,
+                                disabledLabelColor = colors.onPrimaryContainer,
+                            ),
+                        )
+                    }
                 }
 
                 Text(

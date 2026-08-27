@@ -6,6 +6,7 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
+import life.pilot.partner.sdk.model.EventTime
 import kotlin.test.Test
 
 class EventsApiTest {
@@ -17,8 +18,8 @@ class EventsApiTest {
                     """
                     {
                       "events": [
-                        {"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z","venueName":"Venue X","imageUrl":"https://cdn.pilot.life/evt/a.jpg"},
-                        {"eventUUID":"b","name":"NoArt","startDate":"2026-07-01T20:00:00Z","endDate":"2026-07-02T00:00:00Z","venueName":null,"imageUrl":null}
+                        {"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z","times":[{"startAt":"2026-06-01T20:00:00Z","endAt":"2026-06-02T00:00:00Z"}],"venueName":"Venue X","eventType":"Runway Show","featuredEvent":true,"imageUrl":"https://cdn.pilot.life/evt/a.jpg"},
+                        {"eventUUID":"b","name":"NoArt","startDate":"2026-07-01T20:00:00Z","endDate":"2026-07-02T00:00:00Z","times":[],"venueName":"Hosted By Us","eventType":null,"featuredEvent":false,"imageUrl":null}
                       ],
                       "nextCursor": "cur-2"
                     }
@@ -31,8 +32,28 @@ class EventsApiTest {
         assertThat(list.events).hasSize(2)
         assertThat(list.events[0].venueName).isEqualTo("Venue X")
         assertThat(list.events[0].imageUrl).isEqualTo("https://cdn.pilot.life/evt/a.jpg")
+        assertThat(list.events[0].eventType).isEqualTo("Runway Show")
+        assertThat(list.events[0].featuredEvent).isEqualTo(true)
+        assertThat(list.events[0].times).isEqualTo(listOf(EventTime("2026-06-01T20:00:00Z", "2026-06-02T00:00:00Z")))
+        assertThat(list.events[1].eventType).isEqualTo(null)
+        assertThat(list.events[1].featuredEvent).isEqualTo(false)
         assertThat(list.events[1].imageUrl).isEqualTo(null)
         assertThat(list.nextCursor).isEqualTo("cur-2")
+    }
+
+    @Test fun list_tolerates_pre_featured_deployments_omitting_new_fields() = runTest {
+        // times / eventType / featuredEvent absent → defaults, not a crash.
+        val responses = MockResponses().also {
+            it.enqueue {
+                respondJson(
+                    """{"events":[{"eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z","venueName":"V"}],"nextCursor":null}""",
+                )
+            }
+        }
+        val list = mockClient(responses).events.list()
+        assertThat(list.events[0].times).isEqualTo(emptyList())
+        assertThat(list.events[0].eventType).isEqualTo(null)
+        assertThat(list.events[0].featuredEvent).isEqualTo(false)
     }
 
     @Test fun list_tolerates_events_with_imageUrl_omitted_entirely() = runTest {
@@ -54,7 +75,9 @@ class EventsApiTest {
                     """
                     {
                       "eventUUID":"a","name":"Show","startDate":"2026-06-01T20:00:00Z","endDate":"2026-06-02T00:00:00Z",
-                      "venueName":"Echo","imageUrl":"https://cdn.pilot.life/evt/a-hero.jpg",
+                      "times":[{"startAt":"2026-06-01T20:00:00Z","endAt":"2026-06-02T00:00:00Z"}],
+                      "venueName":"Echo","eventType":"Showroom","featuredEvent":true,
+                      "imageUrl":"https://cdn.pilot.life/evt/a-hero.jpg",
                       "description":"Long blurb","shortDescription":"Short"
                     }
                     """,
@@ -64,6 +87,9 @@ class EventsApiTest {
         val detail = mockClient(responses).events.get("a")
         assertThat(detail.imageUrl).isEqualTo("https://cdn.pilot.life/evt/a-hero.jpg")
         assertThat(detail.shortDescription).isEqualTo("Short")
+        assertThat(detail.eventType).isEqualTo("Showroom")
+        assertThat(detail.featuredEvent).isEqualTo(true)
+        assertThat(detail.times).isEqualTo(listOf(EventTime("2026-06-01T20:00:00Z", "2026-06-02T00:00:00Z")))
     }
 
     @Test fun inventory_returns_ETag_and_snapshot() = runTest {

@@ -2,13 +2,35 @@ package life.pilot.partner.sdk.model
 
 import kotlinx.serialization.Serializable
 
+/**
+ * One scheduled session of an event. Multi-day events carry one entry per
+ * day; single-day events carry one. `startDate`/`endDate` on the event only
+ * bound the overall date range — these entries carry the actual times.
+ */
+@Serializable
+data class EventTime(
+    val startAt: String,
+    val endAt: String,
+)
+
 @Serializable
 data class EventListItem(
     val eventUUID: String,
     val name: String,
     val startDate: String,
     val endDate: String,
+    /** Chronological session times. Empty on older deployments or events with no times configured. */
+    val times: List<EventTime> = emptyList(),
+    /**
+     * Venue display name. Current deployments always send a string (falling
+     * back to the event's "hosted by", then empty string); `null` only on
+     * older deployments that predate the fallback.
+     */
     val venueName: String? = null,
+    /** Event category (e.g. "Runway Show", "Showroom"). `null` when unset. */
+    val eventType: String? = null,
+    /** Organizer-curated "featured" flag — use it to highlight or pin events. */
+    val featuredEvent: Boolean = false,
     /**
      * Primary event image URL. `null` when the event has no primary image
      * configured. Inherited by [EventDetail] via openapi `allOf`.
@@ -28,7 +50,14 @@ data class EventDetail(
     val name: String,
     val startDate: String,
     val endDate: String,
+    /** See [EventListItem.times]. */
+    val times: List<EventTime> = emptyList(),
+    /** See [EventListItem.venueName]. */
     val venueName: String? = null,
+    /** See [EventListItem.eventType]. */
+    val eventType: String? = null,
+    /** See [EventListItem.featuredEvent]. */
+    val featuredEvent: Boolean = false,
     val imageUrl: String? = null,
     val description: String? = null,
     val shortDescription: String? = null,
