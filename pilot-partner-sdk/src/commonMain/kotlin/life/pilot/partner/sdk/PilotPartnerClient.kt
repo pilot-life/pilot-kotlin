@@ -30,6 +30,7 @@ import life.pilot.partner.sdk.http.installPartnerErrorMapping
  * val client = PilotPartnerClient.builder()
  *     .apiKey("pk_live_...")
  *     .organizationUuid("...")
+ *     .gatewaySecret("...") // required on dev/sandbox (direct API host); omit in prod
  *     .environment(PartnerEnvironment.SANDBOX)
  *     .build()
  *
